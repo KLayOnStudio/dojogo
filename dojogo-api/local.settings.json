@@ -1,0 +1,12 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "DB_HOST": "dojogo-mysql-us-west2.mysql.database.azure.com",
+    "DB_USER": "klayon",
+    "DB_PASSWORD": "Zmfodyd4urAI",
+    "DB_NAME": "dojogo",
+    "DB_PORT": "3306"
+  }
+}

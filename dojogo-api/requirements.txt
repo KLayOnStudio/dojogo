@@ -1,0 +1,5 @@
+azure-functions
+mysql-connector-python
+PyJWT
+cryptography
+python-dotenv
