@@ -4,6 +4,8 @@ import logging
 import sys
 import os
 
+# Trigger deployment after storage configuration fix
+
 # Add shared directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 
