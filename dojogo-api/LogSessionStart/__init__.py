@@ -34,8 +34,10 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
     except Exception as e:
         logging.error(f"Error logging session start: {e}")
+        logging.error(f"Exception type: {type(e)}")
+        logging.error(f"Exception args: {e.args}")
         return func.HttpResponse(
-            json.dumps({"error": "Internal server error"}),
+            json.dumps({"error": f"Internal server error: {str(e)}"}),
             status_code=500,
             headers={"Content-Type": "application/json"}
         )

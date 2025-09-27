@@ -29,6 +29,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         name = req_body.get('name')
         email = req_body.get('email')
 
+        logging.info(f"CreateUser called with user_id: {user_id}, name: {name}, email: {email}")
+
         if not all([user_id, name, email]):
             return func.HttpResponse(
                 json.dumps({"error": "Missing required fields: user_id, name, email"}),
@@ -63,10 +65,23 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             fetch=True
         )
 
+        if user and user[0]:
+            user_data = user[0]
+            user_response = {
+                "id": user_data.get("id"),
+                "name": user_data.get("name"),
+                "email": user_data.get("email"),
+                "streak": user_data.get("streak"),
+                "totalCount": user_data.get("total_count"),  # Map total_count to totalCount
+                "createdAt": int(user_data.get("created_at").timestamp()) if user_data.get("created_at") else None
+            }
+        else:
+            user_response = None
+
         return func.HttpResponse(
             json.dumps({
                 "message": "User created successfully",
-                "user": user[0] if user else None
+                "user": user_response
             }, default=str),
             status_code=201,
             headers={"Content-Type": "application/json"}

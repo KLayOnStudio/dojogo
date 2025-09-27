@@ -25,7 +25,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         except Exception as e:
             result["mysql_import"] = f"failed: {str(e)}"
 
-        # Test 4: Try database connection
+        # Test 4: Try database connection and show tables
         try:
             import mysql.connector
             connection = mysql.connector.connect(
@@ -37,8 +37,15 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 ssl_disabled=False,
                 connect_timeout=10
             )
+
+            cursor = connection.cursor()
+            cursor.execute("SHOW TABLES")
+            tables = [table[0] for table in cursor.fetchall()]
+            cursor.close()
             connection.close()
+
             result["db_connection"] = "success"
+            result["tables"] = tables
         except Exception as e:
             result["db_connection"] = f"failed: {str(e)}"
 
