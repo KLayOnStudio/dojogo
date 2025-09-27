@@ -11,8 +11,8 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'dojogo-api' # set this to the path to your web app project, defaults to the repository root
-  PYTHON_VERSION: '3.11' # set this to the python version to use (supports 3.6, 3.7, 3.8)
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'dojogo-api' # set this to the path to your web app project
+  PYTHON_VERSION: '3.11' # set this to the python version to use
 
 jobs:
   build:
@@ -35,14 +35,16 @@ jobs:
           source venv/bin/activate
 
       - name: Install dependencies
-        run: pip install -r dojogo-api/requirements.txt
+        run: |
+          cd dojogo-api
+          pip install -r requirements.txt
 
       # Optional: Add step to run tests here
 
       - name: Zip artifact for deployment
         run: |
           cd dojogo-api
-          zip release.zip ./* -r
+          zip ../release.zip ./* -r
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -69,7 +71,7 @@ jobs:
         run: |
           unzip release.zip
           rm release.zip
-        
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -84,5 +86,3 @@ jobs:
           app-name: 'dojogo-api'
           slot-name: 'Production'
           package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
-
-          
