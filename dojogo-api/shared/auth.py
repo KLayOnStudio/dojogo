@@ -116,14 +116,9 @@ def require_auth(f):
             # Decode without verification for now (since we know tokens work)
             try:
                 unverified_payload = jwt.decode(token, options={"verify_signature": False})
-                logging.info(f"=== TOKEN DEBUG ===")
-                logging.info(f"Raw token (first 100 chars): {token[:100]}")
-                logging.info(f"Full unverified payload: {unverified_payload}")
-                user_id_from_token = unverified_payload.get('sub')
-                logging.info(f"Extracted user_id from 'sub': {user_id_from_token}")
-                req.user_id = user_id_from_token
-                logging.info(f"Set req.user_id to: {req.user_id}")
-                logging.info(f"=== END TOKEN DEBUG ===")
+                logging.info(f"Unverified token payload: {unverified_payload}")
+                req.user_id = unverified_payload.get('sub')
+                logging.info(f"Using token-based user_id: {req.user_id}")
                 return f(req)
             except Exception as decode_error:
                 logging.error(f"Failed to decode token: {decode_error}")
