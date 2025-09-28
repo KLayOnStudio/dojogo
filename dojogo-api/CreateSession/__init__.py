@@ -54,34 +54,43 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         today = datetime.now().date()
         yesterday = today - timedelta(days=1)
 
-        # Check if user had sessions yesterday
-        yesterday_sessions = execute_query(
-            "SELECT COUNT(*) as count FROM sessions WHERE user_id = %s AND DATE(created_at) = %s",
-            (user_id, yesterday),
+        # Check if user already had sessions today (before this one)
+        # We need to exclude the session we just created by using a timestamp check
+        today_sessions_before = execute_query(
+            "SELECT COUNT(*) as count FROM sessions WHERE user_id = %s AND DATE(created_at) = %s AND id != %s",
+            (user_id, today, session_id),
             fetch=True
         )
 
-        # Check if user already had sessions today (before this one)
-        today_sessions = execute_query(
-            "SELECT COUNT(*) as count FROM sessions WHERE user_id = %s AND DATE(created_at) = %s",
-            (user_id, today),
-            fetch=True
-        )
+        logging.info(f"STREAK DEBUG - User: {user_id}, Today: {today}, Sessions today before this one: {today_sessions_before}")
 
         # Only update streak if this is the first session of the day
-        if today_sessions and today_sessions[0]['count'] == 1:  # This is the first session today
+        if today_sessions_before and today_sessions_before[0]['count'] == 0:  # This is the first session today
+            # Check if user had sessions yesterday
+            yesterday_sessions = execute_query(
+                "SELECT COUNT(*) as count FROM sessions WHERE user_id = %s AND DATE(created_at) = %s",
+                (user_id, yesterday),
+                fetch=True
+            )
+
+            logging.info(f"STREAK DEBUG - Yesterday sessions: {yesterday_sessions}")
+
             if yesterday_sessions and yesterday_sessions[0]['count'] > 0:
                 # User played yesterday, continue streak
+                logging.info(f"STREAK DEBUG - Incrementing streak for user {user_id}")
                 execute_query(
                     "UPDATE users SET streak = streak + 1 WHERE id = %s",
                     (user_id,)
                 )
             else:
                 # User didn't play yesterday, reset streak to 1
+                logging.info(f"STREAK DEBUG - Resetting streak to 1 for user {user_id}")
                 execute_query(
                     "UPDATE users SET streak = 1 WHERE id = %s",
                     (user_id,)
                 )
+        else:
+            logging.info(f"STREAK DEBUG - Not first session today for user {user_id}, not updating streak")
         # If not first session today, don't change streak
 
         # Get updated user data
