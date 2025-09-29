@@ -43,6 +43,7 @@ class Auth0Manager: ObservableObject {
             Auth0
                 .webAuth()
                 .scope("openid profile email")
+                .parameters(["screen_hint": "signup", "prompt": "select_account"])
                 .start { result in
                     switch result {
                     case .success(let credentials):
@@ -88,6 +89,7 @@ class Auth0Manager: ObservableObject {
             Auth0
                 .webAuth()
                 .scope("openid profile email")
+                .parameters(["prompt": "select_account"])
                 .start { result in
                     switch result {
                     case .success(let credentials):
@@ -132,7 +134,7 @@ class Auth0Manager: ObservableObject {
         return try await withCheckedThrowingContinuation { continuation in
             Auth0
                 .webAuth()
-                .clearSession { result in
+                .clearSession(federated: true) { result in
                     switch result {
                     case .success:
                         Task { @MainActor in
@@ -207,6 +209,19 @@ class Auth0Manager: ObservableObject {
                 switch result {
                 case .success(let credentials):
                     continuation.resume(returning: credentials.accessToken)
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    func getIdToken() async throws -> String {
+        return try await withCheckedThrowingContinuation { continuation in
+            credentialsManager.credentials { result in
+                switch result {
+                case .success(let credentials):
+                    continuation.resume(returning: credentials.idToken)
                 case .failure(let error):
                     continuation.resume(throwing: error)
                 }
