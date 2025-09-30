@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AuthView: View {
     @StateObject private var authViewModel = AuthViewModel()
+    @State private var showFontDebug = false
 
     var body: some View {
         ZStack {
@@ -22,7 +23,7 @@ struct AuthView: View {
                         authViewModel.signUp()
                     }) {
                         Text("SIGN UP")
-                            .font(.system(size: 18, weight: .bold, design: .monospaced))
+                            .font(.pixelifyButtonLarge)
                             .foregroundColor(.black)
                             .frame(width: 200, height: 50)
                             .background(Color.green)
@@ -38,7 +39,7 @@ struct AuthView: View {
                         authViewModel.signIn()
                     }) {
                         Text("SIGN IN")
-                            .font(.system(size: 18, weight: .bold, design: .monospaced))
+                            .font(.pixelifyButtonLarge)
                             .foregroundColor(.black)
                             .frame(width: 200, height: 50)
                             .background(Color.yellow)
@@ -52,21 +53,32 @@ struct AuthView: View {
 
                 if authViewModel.isLoading {
                     Text("LOADING...")
-                        .font(.system(size: 14, weight: .bold, design: .monospaced))
+                        .font(.pixelifyCaption)
                         .foregroundColor(.white)
                 }
 
                 if let errorMessage = authViewModel.errorMessage {
                     Text(errorMessage)
-                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .font(.pixelifySmall)
                         .foregroundColor(.red)
                 }
+
+                // Debug button - remove this after fixing fonts
+                Button("Debug Fonts") {
+                    showFontDebug = true
+                }
+                .font(.system(size: 12))
+                .foregroundColor(.white)
+                .padding(.top, 20)
 
             }
         }
         .fullScreenCover(isPresented: $authViewModel.isAuthenticated) {
             MainMapView()
                 .environmentObject(authViewModel)
+        }
+        .sheet(isPresented: $showFontDebug) {
+            FontDebugView()
         }
     }
 }
