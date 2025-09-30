@@ -13,20 +13,45 @@ struct FontDebugView: View {
                     Text("Pixelify Font Tests:")
                         .font(.headline)
 
-                    Text("PixelifySans-Regular")
-                        .font(.custom("PixelifySans-Regular", size: 18))
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Direct Custom Font Tests:")
+                            .font(.subheadline)
+                            .foregroundColor(.blue)
 
-                    Text("PixelifySans-Bold")
-                        .font(.custom("PixelifySans-Bold", size: 18))
+                        Text("PixelifySans-Regular: The quick brown fox")
+                            .font(.custom("PixelifySans-Regular", size: 18))
 
-                    Text("PixelifySans-SemiBold")
-                        .font(.custom("PixelifySans-SemiBold", size: 18))
+                        Text("PixelifySans-Bold: The quick brown fox")
+                            .font(.custom("PixelifySans-Bold", size: 18))
 
-                    Text("Using Extension - pixelifyBody")
-                        .font(.pixelifyBody)
+                        Text("PixelifySans-SemiBold: The quick brown fox")
+                            .font(.custom("PixelifySans-SemiBold", size: 18))
+                    }
 
-                    Text("Using Extension - pixelifyTitle")
-                        .font(.pixelifyTitle)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Extension Tests:")
+                            .font(.subheadline)
+                            .foregroundColor(.green)
+
+                        Text("pixelifyBody: The quick brown fox")
+                            .font(.pixelifyBody)
+
+                        Text("pixelifyTitle: TITLE TEXT")
+                            .font(.pixelifyTitle)
+
+                        Text("pixelifyButton: BUTTON TEXT")
+                            .font(.pixelifyButton)
+                    }
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Font Availability Check:")
+                            .font(.subheadline)
+                            .foregroundColor(.purple)
+
+                        Text("Regular: \(UIFont(name: "PixelifySans-Regular", size: 16) != nil ? "✅ Available" : "❌ Not Found")")
+                        Text("Bold: \(UIFont(name: "PixelifySans-Bold", size: 16) != nil ? "✅ Available" : "❌ Not Found")")
+                        Text("SemiBold: \(UIFont(name: "PixelifySans-SemiBold", size: 16) != nil ? "✅ Available" : "❌ Not Found")")
+                    }
                 }
                 .padding()
                 .background(Color.gray.opacity(0.1))

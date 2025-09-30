@@ -15,5 +15,11 @@
 			</array>
 		</dict>
 	</array>
+	<key>UIAppFonts</key>
+	<array>
+		<string>PixelifySans-Regular.ttf</string>
+		<string>PixelifySans-Bold.ttf</string>
+		<string>PixelifySans-SemiBold.ttf</string>
+	</array>
 </dict>
 </plist>
