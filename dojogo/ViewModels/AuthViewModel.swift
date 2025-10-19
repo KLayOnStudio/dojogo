@@ -15,8 +15,10 @@ class AuthViewModel: ObservableObject {
         // Observe Auth0Manager state changes
         observeAuth0State()
 
-        // Load stored user if available
-        loadStoredUser()
+        // Only load stored user if Auth0 is already authenticated
+        if auth0Manager.isAuthenticated {
+            loadStoredUser()
+        }
     }
 
     func clearAllData() {
@@ -86,9 +88,17 @@ class AuthViewModel: ObservableObject {
                 // Create user in API
                 do {
                     let createdUser = try await APIService.shared.createUser(user)
-                    print("User created in API: \(createdUser.name)")
+                    print("✅ User created/retrieved from API: \(createdUser.name) (ID: \(createdUser.id))")
+
+                    // Update with full user data from API
+                    await MainActor.run {
+                        self.currentUser = createdUser
+                        LocalStorageService.shared.saveUser(createdUser)
+                        print("✅ Updated local storage with full user data")
+                    }
                 } catch {
-                    print("Failed to create user in API: \(error.localizedDescription)")
+                    print("❌ Failed to create user in API: \(error)")
+                    print("❌ Error details: \(error.localizedDescription)")
                     // Continue with local user for now
                 }
             } catch {
@@ -121,9 +131,17 @@ class AuthViewModel: ObservableObject {
                 // Create user in API
                 do {
                     let createdUser = try await APIService.shared.createUser(user)
-                    print("User created in API: \(createdUser.name)")
+                    print("✅ User created/retrieved from API: \(createdUser.name) (ID: \(createdUser.id))")
+
+                    // Update with full user data from API
+                    await MainActor.run {
+                        self.currentUser = createdUser
+                        LocalStorageService.shared.saveUser(createdUser)
+                        print("✅ Updated local storage with full user data")
+                    }
                 } catch {
-                    print("Failed to create user in API: \(error.localizedDescription)")
+                    print("❌ Failed to create user in API: \(error)")
+                    print("❌ Error details: \(error.localizedDescription)")
                     // Continue with local user for now
                 }
             } catch {

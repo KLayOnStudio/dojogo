@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "startPageDojo.png",
+      "filename" : "shinaiPixel.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "startPageDojo 1.png",
+      "filename" : "shinaiPixel 1.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "startPageDojo 2.png",
+      "filename" : "shinaiPixel 2.png",
       "idiom" : "universal",
       "scale" : "3x"
     }

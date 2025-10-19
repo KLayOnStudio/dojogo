@@ -4,7 +4,13 @@
 -- Users table
 CREATE TABLE users (
     id VARCHAR(255) PRIMARY KEY, -- Auth0 user ID
-    name VARCHAR(255) NOT NULL,
+    user_number INT AUTO_INCREMENT UNIQUE, -- Sequential user number
+    name VARCHAR(255) NOT NULL, -- Auth0 name (email or social profile name)
+    nickname VARCHAR(50) UNIQUE, -- User-chosen display name (optional)
+    nickname_last_changed TIMESTAMP NULL, -- Last time nickname was changed
+    kendo_rank VARCHAR(20), -- Kendo rank (e.g., "unranked", "5kyu", "3dan")
+    kendo_experience_years INT DEFAULT 0, -- Years of kendo practice
+    kendo_experience_months INT DEFAULT 0, -- Additional months of kendo practice (0-11)
     email VARCHAR(255) NOT NULL UNIQUE,
     streak INT DEFAULT 0,
     total_count INT DEFAULT 0,

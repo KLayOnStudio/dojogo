@@ -29,7 +29,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         # Build query based on type
         if leaderboard_type == 'total':
             query = """
-                SELECT name, total_count as score, streak
+                SELECT id as user_id, user_number, name, nickname, total_count as score, streak
                 FROM users
                 WHERE total_count > 0
                 ORDER BY total_count DESC, streak DESC
@@ -37,7 +37,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             """
         else:  # streak
             query = """
-                SELECT name, streak as score, total_count
+                SELECT id as user_id, user_number, name, nickname, streak as score, total_count
                 FROM users
                 WHERE streak > 0
                 ORDER BY streak DESC, total_count DESC
