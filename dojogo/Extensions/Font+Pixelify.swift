@@ -66,13 +66,7 @@ enum PixelifyWeight {
     case bold
 
     var fontName: String {
-        switch self {
-        case .regular:
-            return "PixelifySans-Regular"
-        case .semiBold:
-            return "PixelifySans-SemiBold"
-        case .bold:
-            return "PixelifySans-Bold"
-        }
+        // For now, use only Regular and let the system handle bold/semibold
+        return "PixelifySans-Regular"
     }
 }
