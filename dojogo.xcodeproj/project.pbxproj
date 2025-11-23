@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		B72FB1AD2E873D7A00F35E60 /* Auth0 in Frameworks */ = {isa = PBXBuildFile; productRef = B72FB1AC2E873D7A00F35E60 /* Auth0 */; };
+		B72FB1CB2E8B80C300F35E60 /* SFXswoosh.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = B72FB1CA2E8B80C300F35E60 /* SFXswoosh.mp3 */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -31,6 +32,7 @@
 		B72FB15B2E8723EB00F35E60 /* dojogo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = dojogo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B72FB1692E8723EE00F35E60 /* dojogoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = dojogoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B72FB1732E8723EE00F35E60 /* dojogoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = dojogoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B72FB1CA2E8B80C300F35E60 /* SFXswoosh.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = SFXswoosh.mp3; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -93,6 +95,7 @@
 		B72FB1522E8723EB00F35E60 = {
 			isa = PBXGroup;
 			children = (
+				B72FB1CA2E8B80C300F35E60 /* SFXswoosh.mp3 */,
 				B72FB15D2E8723EB00F35E60 /* dojogo */,
 				B72FB16C2E8723EE00F35E60 /* dojogoTests */,
 				B72FB1762E8723EE00F35E60 /* dojogoUITests */,
@@ -242,6 +245,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B72FB1CB2E8B80C300F35E60 /* SFXswoosh.mp3 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

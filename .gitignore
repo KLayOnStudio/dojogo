@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode user-specific
+xcuserdata/
+*.xcuserstate
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Azure Functions
+.python_packages/
+local.settings.json
+
+# IDE
+.vscode/
+.idea/
+
+# Environment variables
+.env
+.env.local
