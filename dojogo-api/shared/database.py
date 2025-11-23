@@ -5,6 +5,7 @@ import os
 import mysql.connector
 from mysql.connector import Error
 import logging
+from datetime import timezone
 
 def get_db_connection():
     """
@@ -18,12 +19,29 @@ def get_db_connection():
             database=os.environ.get('DB_NAME'),
             port=int(os.environ.get('DB_PORT', 3306)),
             ssl_disabled=False,
-            autocommit=True
+            autocommit=True,
+            time_zone='+00:00'  # Force UTC timezone for all connections
         )
         return connection
     except Error as e:
         logging.error(f"Error connecting to database: {e}")
         raise
+
+def datetime_to_timestamp(dt):
+    """
+    Convert a naive datetime from MySQL (assumed to be UTC) to Unix timestamp
+
+    Args:
+        dt: datetime object from MySQL
+
+    Returns:
+        int: Unix timestamp in seconds
+    """
+    if dt is None:
+        return None
+    # MySQL returns naive datetimes in the connection's timezone (UTC with our config)
+    # We need to treat them as UTC and convert to timestamp
+    return int(dt.replace(tzinfo=timezone.utc).timestamp())
 
 def execute_query(query, params=None, fetch=False):
     """

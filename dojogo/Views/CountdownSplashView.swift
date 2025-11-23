@@ -12,25 +12,10 @@ struct CountdownSplashView: View {
             Color(red: 0.98, green: 0.98, blue: 0.96)
                 .ignoresSafeArea()
 
-            // Fixed position logos
-            VStack(spacing: 40) {
-                // Logo 1
-                Image("Logo1")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 120, height: 120)
-
-                // Logo 2
-                Image("Logo2")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 120, height: 120)
-            }
-
-            // Text overlay (KAMAE + Countdown)
+            // Text overlay (KAMAETO! + Countdown)
             VStack(spacing: 20) {
-                // KAMAE text
-                Text("KAMAE")
+                // KAMAETO! text
+                Text("KAMAETO!")
                     .font(.pixelify(size: 72, weight: .bold))
                     .foregroundColor(.black)
 

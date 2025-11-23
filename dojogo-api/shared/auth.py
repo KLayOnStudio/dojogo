@@ -119,19 +119,29 @@ def require_auth(f):
                 logging.info(f"Unverified token payload: {unverified_payload}")
                 req.user_id = unverified_payload.get('sub')
                 logging.info(f"Using token-based user_id: {req.user_id}")
-                return f(req)
+
+                # Call the wrapped function
+                try:
+                    return f(req)
+                except Exception as func_error:
+                    logging.error(f"Error in wrapped function: {func_error}", exc_info=True)
+                    return func.HttpResponse(
+                        json.dumps({"error": f"Internal error: {str(func_error)}"}),
+                        status_code=500,
+                        headers={"Content-Type": "application/json"}
+                    )
             except Exception as decode_error:
-                logging.error(f"Failed to decode token: {decode_error}")
+                logging.error(f"Failed to decode token: {decode_error}", exc_info=True)
                 return func.HttpResponse(
-                    json.dumps({"error": "Invalid token"}),
+                    json.dumps({"error": f"Invalid token: {str(decode_error)}"}),
                     status_code=401,
                     headers={"Content-Type": "application/json"}
                 )
 
         except Exception as auth_error:
-            logging.error(f"Auth decorator error: {auth_error}")
+            logging.error(f"Auth decorator error: {auth_error}", exc_info=True)
             return func.HttpResponse(
-                json.dumps({"error": "Authentication error"}),
+                json.dumps({"error": f"Authentication error: {str(auth_error)}"}),
                 status_code=500,
                 headers={"Content-Type": "application/json"}
             )

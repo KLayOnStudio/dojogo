@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 # Add shared directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 
-from database import execute_query
+from database import execute_query, datetime_to_timestamp
 from auth import require_auth
 
 @require_auth
@@ -108,7 +108,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 "email": user_data.get("email"),
                 "streak": user_data.get("streak"),
                 "totalCount": user_data.get("total_count"),  # Map total_count to totalCount
-                "createdAt": int(user_data.get("created_at").timestamp()) if user_data.get("created_at") else None
+                "createdAt": datetime_to_timestamp(user_data.get("created_at"))
             }
         else:
             user_response = None

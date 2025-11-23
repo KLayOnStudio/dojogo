@@ -2,83 +2,92 @@ import SwiftUI
 
 struct AuthView: View {
     @StateObject private var authViewModel = AuthViewModel()
-    @State private var showFontDebug = false
 
     var body: some View {
-        ZStack {
-            // Retro dark background
-            Color.black
-                .ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack {
+                // Background gradient
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color.blue.opacity(0.3), .white]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .ignoresSafeArea()
 
-            VStack(spacing: 40) {
-                // Main Logo
+                // Background image
                 Image("MainLogo")
                     .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 150, height: 150)
+                    .scaledToFit()
+                    .frame(width: geometry.size.width)
 
-                VStack(spacing: 20) {
-                    // Sign Up Button
-                    Button(action: {
-                        authViewModel.signUp()
-                    }) {
-                        Text("SIGN UP")
-                            .font(.pixelifyButtonLarge)
-                            .foregroundColor(.black)
-                            .frame(width: 200, height: 50)
-                            .background(Color.green)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 0)
-                                    .stroke(Color.white, lineWidth: 2)
-                            )
+                VStack(spacing: 0) {
+                    Spacer()
+
+                    VStack(spacing: 16) {
+                        // Sign Up Button
+                        Button(action: {
+                            authViewModel.signUp()
+                        }) {
+                            Text("SIGN UP")
+                                .font(.pixelifyButtonLarge)
+                                .foregroundColor(.black)
+                                .frame(maxWidth: min(geometry.size.width * 0.7, 280))
+                                .frame(height: 56)
+                                .background(Color.green)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 0)
+                                        .stroke(Color.white, lineWidth: 3)
+                                )
+                        }
+                        .disabled(authViewModel.isLoading)
+
+                        // Sign In Button
+                        Button(action: {
+                            authViewModel.signIn()
+                        }) {
+                            Text("SIGN IN")
+                                .font(.pixelifyButtonLarge)
+                                .foregroundColor(.black)
+                                .frame(maxWidth: min(geometry.size.width * 0.7, 280))
+                                .frame(height: 56)
+                                .background(Color.yellow)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 0)
+                                        .stroke(Color.white, lineWidth: 3)
+                                )
+                        }
+                        .disabled(authViewModel.isLoading)
                     }
-                    .disabled(authViewModel.isLoading)
+                    .padding(.horizontal, 20)
 
-                    // Sign In Button
-                    Button(action: {
-                        authViewModel.signIn()
-                    }) {
-                        Text("SIGN IN")
-                            .font(.pixelifyButtonLarge)
-                            .foregroundColor(.black)
-                            .frame(width: 200, height: 50)
-                            .background(Color.yellow)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 0)
-                                    .stroke(Color.white, lineWidth: 2)
-                            )
+                    if authViewModel.isLoading {
+                        Text("LOADING...")
+                            .font(.pixelifyCaption)
+                            .foregroundColor(.white)
+                            .padding(.top, 24)
                     }
-                    .disabled(authViewModel.isLoading)
-                }
 
-                if authViewModel.isLoading {
-                    Text("LOADING...")
-                        .font(.pixelifyCaption)
-                        .foregroundColor(.white)
-                }
+                    if let errorMessage = authViewModel.errorMessage {
+                        Text(errorMessage)
+                            .font(.pixelifySmall)
+                            .foregroundColor(.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                            .padding(.top, 24)
+                    }
 
-                if let errorMessage = authViewModel.errorMessage {
-                    Text(errorMessage)
-                        .font(.pixelifySmall)
-                        .foregroundColor(.red)
+                    Spacer()
+                        .frame(height: geometry.size.height * 0.15)
                 }
-
-                // Debug button - remove this after fixing fonts
-                Button("Debug Fonts") {
-                    showFontDebug = true
-                }
-                .font(.system(size: 12))
-                .foregroundColor(.white)
-                .padding(.top, 20)
-
+                .frame(width: geometry.size.width, height: geometry.size.height)
             }
         }
         .fullScreenCover(isPresented: $authViewModel.isAuthenticated) {
             MainMapView()
                 .environmentObject(authViewModel)
-        }
-        .sheet(isPresented: $showFontDebug) {
-            FontDebugView()
         }
     }
 }

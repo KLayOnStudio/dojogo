@@ -1,5 +1,6 @@
 azure-functions>=1.0.0
 mysql-connector-python>=8.0.0
-PyJWT==2.4.0
-cryptography==3.3.2
+PyJWT[crypto]==2.8.0
+cryptography>=41.0.0
 python-dotenv>=0.19.0
+azure-storage-blob>=12.19.0

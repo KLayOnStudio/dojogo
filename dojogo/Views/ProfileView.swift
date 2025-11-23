@@ -11,6 +11,11 @@ struct ProfileView: View {
     @State private var errorMessage: String?
     @State private var successMessage: String?
 
+    // Edit mode states for each field
+    @State private var isEditingNickname = false
+    @State private var isEditingRank = false
+    @State private var isEditingExperience = false
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -79,127 +84,315 @@ struct ProfileView: View {
                                         .font(.pixelifyBodyBold)
                                         .foregroundColor(.white)
 
-                                    if !user.canChangeNickname, let lastChanged = user.nicknameLastChanged {
-                                        let daysRemaining = 30 - Calendar.current.dateComponents([.day], from: lastChanged, to: Date()).day!
-                                        Text("(\(daysRemaining) days until change)")
-                                            .font(.pixelify(size: 9))
-                                            .foregroundColor(.gray)
+                                    Spacer()
+
+                                    if isEditingNickname {
+                                        Button(action: { saveNickname() }) {
+                                            Text("CONFIRM")
+                                                .font(.pixelify(size: 10))
+                                                .foregroundColor(.black)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color.green)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 0)
+                                                        .stroke(Color.white, lineWidth: 1)
+                                                )
+                                        }
+                                        .disabled(isLoading)
+
+                                        Button(action: {
+                                            isEditingNickname = false
+                                            loadUserData()  // Reset to original value
+                                        }) {
+                                            Text("CANCEL")
+                                                .font(.pixelify(size: 10))
+                                                .foregroundColor(.white)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color.red.opacity(0.7))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 0)
+                                                        .stroke(Color.white, lineWidth: 1)
+                                                )
+                                        }
+                                    } else if user.canChangeNickname {
+                                        Button(action: { isEditingNickname = true }) {
+                                            Text("EDIT")
+                                                .font(.pixelify(size: 10))
+                                                .foregroundColor(.white)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color.blue.opacity(0.7))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 0)
+                                                        .stroke(Color.white, lineWidth: 1)
+                                                )
+                                        }
                                     }
                                 }
 
-                                TextField("", text: $nickname)
-                                    .placeholder(when: nickname.isEmpty) {
-                                        Text("Enter nickname")
+                                HStack {
+                                    if isEditingNickname {
+                                        TextField("", text: $nickname)
+                                            .placeholder(when: nickname.isEmpty) {
+                                                Text("Enter nickname")
+                                                    .font(.pixelifyBody)
+                                                    .foregroundColor(.gray)
+                                            }
                                             .font(.pixelifyBody)
-                                            .foregroundColor(.gray)
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 14)
+                                            .background(Color.gray.opacity(0.3))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 0)
+                                                    .stroke(Color.yellow, lineWidth: 2)
+                                            )
+                                            .autocapitalization(.none)
+                                            .disableAutocorrection(true)
+                                    } else {
+                                        Text(user.nickname ?? "Not set")
+                                            .font(.pixelifyBody)
+                                            .foregroundColor(user.nickname != nil ? .white : .gray)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 14)
+                                            .background(Color.gray.opacity(0.1))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 0)
+                                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                            )
                                     }
-                                    .font(.pixelifyBody)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 14)
-                                    .background(Color.gray.opacity(0.2))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 0)
-                                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                    )
-                                    .autocapitalization(.none)
-                                    .disableAutocorrection(true)
-                                    .disabled(!user.canChangeNickname)
-                                    .opacity(user.canChangeNickname ? 1.0 : 0.5)
+                                }
 
-                                Text("3-50 characters • Changes limited to once per 30 days")
-                                    .font(.pixelify(size: 9))
-                                    .foregroundColor(.gray)
+                                if !user.canChangeNickname, let lastChanged = user.nicknameLastChanged {
+                                    let daysSinceChange = Calendar.current.dateComponents([.day], from: lastChanged, to: Date()).day ?? 0
+                                    let daysRemaining = 14 - daysSinceChange
+                                    Text("Can change in \(daysRemaining) days")
+                                        .font(.pixelify(size: 9))
+                                        .foregroundColor(.orange)
+                                } else {
+                                    Text("3-50 characters • Changes limited to once per 14 days")
+                                        .font(.pixelify(size: 9))
+                                        .foregroundColor(.gray)
+                                }
                             }
                             .padding(.horizontal, 20)
 
                             // Kendo Rank Section
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("KENDO RANK")
-                                    .font(.pixelifyBodyBold)
-                                    .foregroundColor(.white)
+                                HStack {
+                                    Text("KENDO RANK")
+                                        .font(.pixelifyBodyBold)
+                                        .foregroundColor(.white)
 
-                                Menu {
-                                    ForEach(KendoRank.allCases, id: \.self) { rank in
+                                    Spacer()
+
+                                    if isEditingRank {
+                                        Button(action: { saveRank() }) {
+                                            Text("CONFIRM")
+                                                .font(.pixelify(size: 10))
+                                                .foregroundColor(.black)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color.green)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 0)
+                                                        .stroke(Color.white, lineWidth: 1)
+                                                )
+                                        }
+                                        .disabled(isLoading)
+
                                         Button(action: {
-                                            selectedRank = rank
+                                            isEditingRank = false
+                                            loadUserData()  // Reset to original value
                                         }) {
-                                            Text(rank.displayName)
+                                            Text("CANCEL")
+                                                .font(.pixelify(size: 10))
+                                                .foregroundColor(.white)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color.red.opacity(0.7))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 0)
+                                                        .stroke(Color.white, lineWidth: 1)
+                                                )
+                                        }
+                                    } else {
+                                        Button(action: { isEditingRank = true }) {
+                                            Text("EDIT")
+                                                .font(.pixelify(size: 10))
+                                                .foregroundColor(.white)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color.blue.opacity(0.7))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 0)
+                                                        .stroke(Color.white, lineWidth: 1)
+                                                )
                                         }
                                     }
-                                } label: {
-                                    HStack {
-                                        Text(selectedRank.displayName)
-                                            .font(.pixelifyBody)
-                                            .foregroundColor(.white)
+                                }
 
-                                        Spacer()
+                                if isEditingRank {
+                                    Menu {
+                                        ForEach(KendoRank.allCases, id: \.self) { rank in
+                                            Button(action: {
+                                                selectedRank = rank
+                                            }) {
+                                                Text(rank.displayName)
+                                            }
+                                        }
+                                    } label: {
+                                        HStack {
+                                            Text(selectedRank.displayName)
+                                                .font(.pixelifyBody)
+                                                .foregroundColor(.white)
 
-                                        Text("▼")
-                                            .font(.pixelify(size: 12))
-                                            .foregroundColor(.white)
+                                            Spacer()
+
+                                            Text("▼")
+                                                .font(.pixelify(size: 12))
+                                                .foregroundColor(.white)
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 14)
+                                        .background(Color.gray.opacity(0.3))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 0)
+                                                .stroke(Color.yellow, lineWidth: 2)
+                                        )
                                     }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 14)
-                                    .background(Color.gray.opacity(0.2))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 0)
-                                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                    )
+                                } else {
+                                    Text((user.kendoRank ?? .unranked).displayName)
+                                        .font(.pixelifyBody)
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 14)
+                                        .background(Color.gray.opacity(0.1))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 0)
+                                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                        )
                                 }
                             }
                             .padding(.horizontal, 20)
 
                             // Kendo Experience Section
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("KENDO EXPERIENCE")
-                                    .font(.pixelifyBodyBold)
-                                    .foregroundColor(.white)
+                                HStack {
+                                    Text("KENDO EXPERIENCE")
+                                        .font(.pixelifyBodyBold)
+                                        .foregroundColor(.white)
 
-                                HStack(spacing: 12) {
-                                    // Years input
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text("Years")
-                                            .font(.pixelify(size: 10))
-                                            .foregroundColor(.gray)
+                                    Spacer()
 
-                                        Picker("Years", selection: $experienceYears) {
-                                            ForEach(0...50, id: \.self) { year in
-                                                Text("\(year)").tag(year)
-                                            }
+                                    if isEditingExperience {
+                                        Button(action: { saveExperience() }) {
+                                            Text("CONFIRM")
+                                                .font(.pixelify(size: 10))
+                                                .foregroundColor(.black)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color.green)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 0)
+                                                        .stroke(Color.white, lineWidth: 1)
+                                                )
                                         }
-                                        .pickerStyle(.menu)
-                                        .frame(maxWidth: .infinity)
+                                        .disabled(isLoading)
+
+                                        Button(action: {
+                                            isEditingExperience = false
+                                            loadUserData()  // Reset to original value
+                                        }) {
+                                            Text("CANCEL")
+                                                .font(.pixelify(size: 10))
+                                                .foregroundColor(.white)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color.red.opacity(0.7))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 0)
+                                                        .stroke(Color.white, lineWidth: 1)
+                                                )
+                                        }
+                                    } else {
+                                        Button(action: { isEditingExperience = true }) {
+                                            Text("EDIT")
+                                                .font(.pixelify(size: 10))
+                                                .foregroundColor(.white)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color.blue.opacity(0.7))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 0)
+                                                        .stroke(Color.white, lineWidth: 1)
+                                                )
+                                        }
+                                    }
+                                }
+
+                                if isEditingExperience {
+                                    HStack(spacing: 12) {
+                                        // Years input
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text("Years")
+                                                .font(.pixelify(size: 10))
+                                                .foregroundColor(.gray)
+
+                                            Picker("Years", selection: $experienceYears) {
+                                                ForEach(0...50, id: \.self) { year in
+                                                    Text("\(year)").tag(year)
+                                                }
+                                            }
+                                            .pickerStyle(.menu)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 14)
+                                            .background(Color.gray.opacity(0.3))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 0)
+                                                    .stroke(Color.yellow, lineWidth: 2)
+                                            )
+                                        }
+
+                                        // Months input
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text("Months")
+                                                .font(.pixelify(size: 10))
+                                                .foregroundColor(.gray)
+
+                                            Picker("Months", selection: $experienceMonths) {
+                                                ForEach(0...11, id: \.self) { month in
+                                                    Text("\(month)").tag(month)
+                                                }
+                                            }
+                                            .pickerStyle(.menu)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 14)
+                                            .background(Color.gray.opacity(0.3))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 0)
+                                                    .stroke(Color.yellow, lineWidth: 2)
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Text("\(user.kendoExperienceYears) years, \(user.kendoExperienceMonths) months")
+                                        .font(.pixelifyBody)
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(.horizontal, 16)
                                         .padding(.vertical, 14)
-                                        .background(Color.gray.opacity(0.2))
+                                        .background(Color.gray.opacity(0.1))
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 0)
                                                 .stroke(Color.white.opacity(0.3), lineWidth: 1)
                                         )
-                                    }
-
-                                    // Months input
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text("Months")
-                                            .font(.pixelify(size: 10))
-                                            .foregroundColor(.gray)
-
-                                        Picker("Months", selection: $experienceMonths) {
-                                            ForEach(0...11, id: \.self) { month in
-                                                Text("\(month)").tag(month)
-                                            }
-                                        }
-                                        .pickerStyle(.menu)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 14)
-                                        .background(Color.gray.opacity(0.2))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 0)
-                                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                                        )
-                                    }
                                 }
                             }
                             .padding(.horizontal, 20)
@@ -210,6 +403,7 @@ struct ProfileView: View {
                                     .font(.pixelifySmall)
                                     .foregroundColor(.red)
                                     .padding(.horizontal, 20)
+                                    .padding(.top, 8)
                             }
 
                             if let success = successMessage {
@@ -217,34 +411,8 @@ struct ProfileView: View {
                                     .font(.pixelifySmall)
                                     .foregroundColor(.green)
                                     .padding(.horizontal, 20)
+                                    .padding(.top, 8)
                             }
-
-                            // Save Button
-                            Button(action: {
-                                saveProfile()
-                            }) {
-                                if isLoading {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .black))
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: 56)
-                                        .background(Color.yellow)
-                                } else {
-                                    Text("SAVE CHANGES")
-                                        .font(.pixelifyButton)
-                                        .foregroundColor(.black)
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: 56)
-                                        .background(Color.yellow)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 0)
-                                                .stroke(Color.white, lineWidth: 2)
-                                        )
-                                }
-                            }
-                            .disabled(isLoading)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 8)
 
                             Spacer()
                         }
@@ -286,14 +454,30 @@ struct ProfileView: View {
             return
         }
         print("ProfileView: Loading user data - nickname: \(user.nickname ?? "nil"), rank: \(user.kendoRank?.rawValue ?? "nil"), years: \(user.kendoExperienceYears), months: \(user.kendoExperienceMonths)")
+
+        // Debug nickname change date
+        if let lastChanged = user.nicknameLastChanged {
+            let daysSinceChange = Calendar.current.dateComponents([.day], from: lastChanged, to: Date()).day ?? 0
+            let daysRemaining = 14 - daysSinceChange
+            print("DEBUG ProfileView: lastChanged=\(lastChanged), daysSinceChange=\(daysSinceChange), daysRemaining=\(daysRemaining), canChange=\(user.canChangeNickname)")
+        } else {
+            print("DEBUG ProfileView: nicknameLastChanged is nil")
+        }
+
         nickname = user.nickname ?? ""
         selectedRank = user.kendoRank ?? .unranked
         experienceYears = user.kendoExperienceYears
         experienceMonths = user.kendoExperienceMonths
     }
 
-    private func saveProfile() {
+    // MARK: - Individual Save Functions
+
+    private func saveNickname() {
         guard let user = authViewModel.currentUser else { return }
+        guard !nickname.isEmpty && nickname != user.nickname else {
+            errorMessage = "No changes to save"
+            return
+        }
 
         isLoading = true
         errorMessage = nil
@@ -301,39 +485,22 @@ struct ProfileView: View {
 
         Task {
             do {
-                // Determine what changed
-                let nicknameChanged = !nickname.isEmpty && nickname != user.nickname
-                let rankChanged = selectedRank != user.kendoRank
-                let experienceYearsChanged = experienceYears != user.kendoExperienceYears
-                let experienceMonthsChanged = experienceMonths != user.kendoExperienceMonths
-
-                if !nicknameChanged && !rankChanged && !experienceYearsChanged && !experienceMonthsChanged {
-                    await MainActor.run {
-                        errorMessage = "No changes to save"
-                        isLoading = false
-                    }
-                    return
-                }
-
-                // Update profile
                 let updatedUser = try await APIService.shared.updateProfile(
-                    nickname: nicknameChanged ? nickname : nil,
-                    kendoRank: rankChanged ? selectedRank : nil,
-                    experienceYears: experienceYearsChanged ? experienceYears : nil,
-                    experienceMonths: experienceMonthsChanged ? experienceMonths : nil
+                    nickname: nickname,
+                    kendoRank: nil,
+                    experienceYears: nil,
+                    experienceMonths: nil
                 )
 
                 await MainActor.run {
                     authViewModel.currentUser = updatedUser
-                    successMessage = "Profile updated successfully!"
+                    LocalStorageService.shared.saveUser(updatedUser)
+                    successMessage = "Nickname updated successfully!"
                     isLoading = false
-                    // Reload the UI with updated data
+                    isEditingNickname = false
                     loadUserData()
                 }
             } catch {
-                print("ProfileView: Save failed with error: \(error)")
-                print("ProfileView: Error type: \(type(of: error))")
-                print("ProfileView: Error description: \(error.localizedDescription)")
                 await MainActor.run {
                     isLoading = false
                     if error.localizedDescription.contains("already taken") {
@@ -341,8 +508,82 @@ struct ProfileView: View {
                     } else if error.localizedDescription.contains("days") {
                         errorMessage = error.localizedDescription
                     } else {
-                        errorMessage = "Failed to update profile: \(error.localizedDescription)"
+                        errorMessage = "Failed to update nickname: \(error.localizedDescription)"
                     }
+                }
+            }
+        }
+    }
+
+    private func saveRank() {
+        guard let user = authViewModel.currentUser else { return }
+        guard selectedRank != user.kendoRank else {
+            errorMessage = "No changes to save"
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+        successMessage = nil
+
+        Task {
+            do {
+                let updatedUser = try await APIService.shared.updateProfile(
+                    nickname: nil,
+                    kendoRank: selectedRank,
+                    experienceYears: nil,
+                    experienceMonths: nil
+                )
+
+                await MainActor.run {
+                    authViewModel.currentUser = updatedUser
+                    LocalStorageService.shared.saveUser(updatedUser)
+                    successMessage = "Kendo rank updated successfully!"
+                    isLoading = false
+                    isEditingRank = false
+                    loadUserData()
+                }
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    errorMessage = "Failed to update rank: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func saveExperience() {
+        guard let user = authViewModel.currentUser else { return }
+        guard experienceYears != user.kendoExperienceYears || experienceMonths != user.kendoExperienceMonths else {
+            errorMessage = "No changes to save"
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+        successMessage = nil
+
+        Task {
+            do {
+                let updatedUser = try await APIService.shared.updateProfile(
+                    nickname: nil,
+                    kendoRank: nil,
+                    experienceYears: experienceYears,
+                    experienceMonths: experienceMonths
+                )
+
+                await MainActor.run {
+                    authViewModel.currentUser = updatedUser
+                    LocalStorageService.shared.saveUser(updatedUser)
+                    successMessage = "Experience updated successfully!"
+                    isLoading = false
+                    isEditingExperience = false
+                    loadUserData()
+                }
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    errorMessage = "Failed to update experience: \(error.localizedDescription)"
                 }
             }
         }

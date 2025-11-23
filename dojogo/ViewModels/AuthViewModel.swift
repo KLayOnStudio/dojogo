@@ -187,4 +187,30 @@ class AuthViewModel: ObservableObject {
             await self.signOut()
         }
     }
+
+    // TEMPORARY: Get token for smoke tests
+    func printTokenForTesting() {
+        Task {
+            do {
+                let accessToken = try await auth0Manager.getAccessToken()
+                let idToken = try await auth0Manager.getIdToken()
+                print("╔════════════════════════════════════════════════════════════")
+                print("║ 🔑 AUTH0 TOKENS FOR SMOKE TESTS")
+                print("╠════════════════════════════════════════════════════════════")
+                print("║ ACCESS TOKEN (may be encrypted JWE):")
+                print(accessToken)
+                print("╠════════════════════════════════════════════════════════════")
+                print("║ ID TOKEN (standard JWT):")
+                print(idToken)
+                print("╠════════════════════════════════════════════════════════════")
+                print("║ Use ID TOKEN - copy the second token and run:")
+                print("║ export TOKEN='<paste_id_token_here>'")
+                print("║ cd /Users/laeunkim/Dropbox/Dev/dojogo/dojogo/dojogo-api")
+                print("║ ./smoke_test.sh")
+                print("╚════════════════════════════════════════════════════════════")
+            } catch {
+                print("❌ Failed to get tokens: \(error)")
+            }
+        }
+    }
 }

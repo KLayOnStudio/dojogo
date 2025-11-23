@@ -59,6 +59,16 @@ class Auth0Manager: ObservableObject {
                                 let idToken = credentials.idToken
                                 let jwt = try decode(jwt: idToken)
 
+                                // 🔑 DEBUG: Print token for smoke testing
+                                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                                print("🔑 AUTH0 TOKEN FOR SMOKE TESTING:")
+                                print(idToken)
+                                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                                print("💡 To run smoke tests, copy this token and run:")
+                                print("   export TOKEN='\(idToken)'")
+                                print("   cd dojogo-api && ./smoke_test.sh")
+                                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
                                 let user = User(
                                     id: jwt.subject ?? "unknown",
                                     name: jwt.claim(name: "name").string ?? jwt.claim(name: "nickname").string ?? "User",
@@ -104,6 +114,16 @@ class Auth0Manager: ObservableObject {
                             do {
                                 let idToken = credentials.idToken
                                 let jwt = try decode(jwt: idToken)
+
+                                // 🔑 DEBUG: Print token for smoke testing
+                                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                                print("🔑 AUTH0 TOKEN FOR SMOKE TESTING:")
+                                print(idToken)
+                                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                                print("💡 To run smoke tests, copy this token and run:")
+                                print("   export TOKEN='\(idToken)'")
+                                print("   cd dojogo-api && ./smoke_test.sh")
+                                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
                                 let user = User(
                                     id: jwt.subject ?? "unknown",

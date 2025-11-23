@@ -8,7 +8,7 @@ from datetime import datetime
 # Add shared directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 
-from database import execute_query
+from database import execute_query, datetime_to_timestamp
 from auth import require_auth
 
 @require_auth
@@ -59,12 +59,12 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                     headers={"Content-Type": "application/json"}
                 )
 
-            # Check 30-day cooldown
+            # Check 14-day cooldown
             last_changed = user[0].get('nickname_last_changed')
             if last_changed:
                 days_since_change = (datetime.now() - last_changed).days
-                if days_since_change < 30:
-                    days_remaining = 30 - days_since_change
+                if days_since_change < 14:
+                    days_remaining = 14 - days_since_change
                     return func.HttpResponse(
                         json.dumps({
                             "error": f"You can change your nickname again in {days_remaining} days",
@@ -158,14 +158,14 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 "userNumber": user_data.get("user_number"),
                 "name": user_data.get("name"),
                 "nickname": user_data.get("nickname"),
-                "nicknameLastChanged": int(user_data.get("nickname_last_changed").timestamp()) if user_data.get("nickname_last_changed") else None,
+                "nicknameLastChanged": datetime_to_timestamp(user_data.get("nickname_last_changed")),
                 "kendoRank": user_data.get("kendo_rank"),
                 "kendoExperienceYears": user_data.get("kendo_experience_years"),
                 "kendoExperienceMonths": user_data.get("kendo_experience_months"),
                 "email": user_data.get("email"),
                 "streak": user_data.get("streak"),
                 "totalCount": user_data.get("total_count"),
-                "createdAt": int(user_data.get("created_at").timestamp()) if user_data.get("created_at") else None
+                "createdAt": datetime_to_timestamp(user_data.get("created_at"))
             }
 
             return func.HttpResponse(

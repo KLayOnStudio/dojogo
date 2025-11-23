@@ -82,13 +82,13 @@ struct User: Codable, Identifiable {
         return nickname ?? name
     }
 
-    // Can user change nickname? (30 day cooldown)
+    // Can user change nickname? (14 day cooldown)
     var canChangeNickname: Bool {
         guard let lastChanged = nicknameLastChanged else {
             return true // Never changed before
         }
         let daysSinceChange = Calendar.current.dateComponents([.day], from: lastChanged, to: Date()).day ?? 0
-        return daysSinceChange >= 30
+        return daysSinceChange >= 14
     }
 
     // Formatted experience string

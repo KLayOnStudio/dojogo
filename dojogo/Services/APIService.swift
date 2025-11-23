@@ -57,6 +57,16 @@ class APIService: ObservableObject {
 
     private init() {}
 
+    // MARK: - JSON Decoder Configuration
+
+    /// Returns a properly configured JSONDecoder for API responses
+    /// Always use this instead of creating JSONDecoder() directly to ensure consistent date handling
+    private func configuredDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970  // API sends Unix timestamps (seconds since 1970)
+        return decoder
+    }
+
     // MARK: - Authentication Helper
 
     private func addAuthHeaders(to request: inout URLRequest) async {
@@ -105,7 +115,7 @@ class APIService: ObservableObject {
             let user: User
         }
 
-        let apiResponse = try JSONDecoder().decode(CreateUserResponse.self, from: data)
+        let apiResponse = try configuredDecoder().decode(CreateUserResponse.self, from: data)
         return apiResponse.user
     }
 
@@ -127,7 +137,7 @@ class APIService: ObservableObject {
             let user: User
         }
 
-        let apiResponse = try JSONDecoder().decode(GetUserResponse.self, from: data)
+        let apiResponse = try configuredDecoder().decode(GetUserResponse.self, from: data)
         return apiResponse.user
     }
 
@@ -183,7 +193,7 @@ class APIService: ObservableObject {
             let user: User
         }
 
-        let apiResponse = try JSONDecoder().decode(SessionSubmissionResponse.self, from: data)
+        let apiResponse = try configuredDecoder().decode(SessionSubmissionResponse.self, from: data)
         return (updatedUser: apiResponse.user, streak: apiResponse.user.streak)
     }
 
@@ -211,8 +221,8 @@ class APIService: ObservableObject {
             let rank: Int
         }
 
-        let totalResponse = try JSONDecoder().decode(LeaderboardAPIResponse.self, from: totalData)
-        let streakResponse = try JSONDecoder().decode(LeaderboardAPIResponse.self, from: streakData)
+        let totalResponse = try configuredDecoder().decode(LeaderboardAPIResponse.self, from: totalData)
+        let streakResponse = try configuredDecoder().decode(LeaderboardAPIResponse.self, from: streakData)
 
         // Convert to app format
         let totalEntries = totalResponse.leaderboard.map { entry in
@@ -261,7 +271,7 @@ class APIService: ObservableObject {
 
         guard httpResponse.statusCode == 200 else {
             // Try to parse error message
-            if let errorResponse = try? JSONDecoder().decode([String: String].self, from: data),
+            if let errorResponse = try? configuredDecoder().decode([String: String].self, from: data),
                let errorMessage = errorResponse["error"] {
                 throw NSError(domain: "APIError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorMessage])
             }
@@ -285,14 +295,21 @@ class APIService: ObservableObject {
             let createdAt: Int?
         }
 
-        let apiResponse = try JSONDecoder().decode(UpdateNicknameResponse.self, from: data)
+        let apiResponse = try configuredDecoder().decode(UpdateNicknameResponse.self, from: data)
         let userResponse = apiResponse.user
 
         // Convert to User model
         var user = User(id: userResponse.id, name: userResponse.name, email: userResponse.email)
         user.userNumber = userResponse.userNumber
         user.nickname = userResponse.nickname
-        user.nicknameLastChanged = userResponse.nicknameLastChanged != nil ? Date(timeIntervalSince1970: TimeInterval(userResponse.nicknameLastChanged!)) : nil
+        if let timestamp = userResponse.nicknameLastChanged {
+            print("DEBUG getUser: Raw timestamp from API: \(timestamp)")
+            let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+            print("DEBUG getUser: Converted to date: \(date)")
+            user.nicknameLastChanged = date
+        } else {
+            user.nicknameLastChanged = nil
+        }
         user.streak = userResponse.streak
         user.totalCount = userResponse.totalCount
         user.createdAt = userResponse.createdAt != nil ? Date(timeIntervalSince1970: TimeInterval(userResponse.createdAt!)) : Date()
@@ -338,7 +355,7 @@ class APIService: ObservableObject {
 
         guard httpResponse.statusCode == 200 else {
             // Try to parse error message
-            if let errorResponse = try? JSONDecoder().decode([String: String].self, from: data),
+            if let errorResponse = try? configuredDecoder().decode([String: String].self, from: data),
                let errorMessage = errorResponse["error"] {
                 print("UpdateProfile error message: \(errorMessage)")
                 throw NSError(domain: "APIError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorMessage])
@@ -367,14 +384,21 @@ class APIService: ObservableObject {
             let createdAt: Int?
         }
 
-        let apiResponse = try JSONDecoder().decode(UpdateProfileResponse.self, from: data)
+        let apiResponse = try configuredDecoder().decode(UpdateProfileResponse.self, from: data)
         let userResponse = apiResponse.user
 
         // Convert to User model
         var user = User(id: userResponse.id, name: userResponse.name, email: userResponse.email)
         user.userNumber = userResponse.userNumber
         user.nickname = userResponse.nickname
-        user.nicknameLastChanged = userResponse.nicknameLastChanged != nil ? Date(timeIntervalSince1970: TimeInterval(userResponse.nicknameLastChanged!)) : nil
+        if let timestamp = userResponse.nicknameLastChanged {
+            print("DEBUG updateProfile: Raw timestamp from API: \(timestamp)")
+            let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+            print("DEBUG updateProfile: Converted to date: \(date)")
+            user.nicknameLastChanged = date
+        } else {
+            user.nicknameLastChanged = nil
+        }
         user.kendoRank = userResponse.kendoRank != nil ? KendoRank(rawValue: userResponse.kendoRank!) : nil
         user.kendoExperienceYears = userResponse.kendoExperienceYears ?? 0
         user.kendoExperienceMonths = userResponse.kendoExperienceMonths ?? 0

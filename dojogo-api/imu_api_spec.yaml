@@ -1,0 +1,531 @@
+openapi: 3.1.0
+info:
+  title: DojoGo IMU Data Capture API
+  version: 1.0.0-alpha
+  description: |
+    **Phase 1: Core IMU Capture**
+
+    Lossless raw sensor data capture to Azure Blob Storage with minimal DB indexing.
+
+    **Key Features:**
+    - Idempotent uploads via client_upload_id
+    - SAS token generation scoped to session path
+    - Parquet format for raw data (SI units)
+    - Manifest-based finalization with checksum verification
+
+    **Blob Layout:**
+    ```
+    container: imu-alpha
+    path: users/{user_id}/sessions/{imu_session_id}/
+      - raw_{imu_session_id}_{part:0000}.parquet
+      - manifest_{imu_session_id}.json
+      - device_{imu_session_id}.json
+      - calib_{imu_session_id}.json (optional)
+      - events_{imu_session_id}.jsonl (optional)
+    ```
+
+servers:
+  - url: https://dojogo-api-h9cxf7h0cve2grc5.centralus-01.azurewebsites.net/api/v1
+    description: Azure Functions Production
+
+security:
+  - bearerAuth: []
+
+paths:
+  /imu/sessions:
+    post:
+      summary: Create or fetch IMU session
+      description: |
+        Creates a new IMU session or returns existing session if client_upload_id matches.
+
+        **Idempotency:** Use `client_upload_id` (UUID) to safely retry.
+
+        **Returns:** Session metadata + SAS token for uploading files to blob storage.
+      operationId: createImuSession
+      tags:
+        - IMU Sessions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - client_upload_id
+                - device_info
+                - start_time_utc
+              properties:
+                client_upload_id:
+                  type: string
+                  format: uuid
+                  description: Client-generated UUID for idempotency
+                  example: "550e8400-e29b-41d4-a716-446655440000"
+                device_info:
+                  type: object
+                  required:
+                    - platform
+                  properties:
+                    platform:
+                      type: string
+                      enum: [ios, android, switch, other]
+                      example: "ios"
+                    model:
+                      type: string
+                      example: "iPhone 15 Pro"
+                    os_version:
+                      type: string
+                      example: "iOS 17.1"
+                    app_version:
+                      type: string
+                      example: "1.0.0-alpha"
+                    hw_id:
+                      type: string
+                      description: Vendor ID or secure device UUID
+                      example: "ABCD1234-VENDOR-ID"
+                start_time_utc:
+                  type: string
+                  format: date-time
+                  description: Session start time (ISO 8601, UTC)
+                  example: "2025-10-16T12:00:00.123456Z"
+                nominal_hz:
+                  type: number
+                  format: float
+                  description: Expected sample rate (Hz)
+                  example: 100.0
+                coord_frame:
+                  type: string
+                  enum: [device, world]
+                  default: device
+                  description: Coordinate frame reference
+                notes:
+                  type: string
+                  description: Optional session notes
+                  example: "Practice session - men strikes"
+                game_session_id:
+                  type: string
+                  format: uuid
+                  description: Optional link to tap-game session (sessions.id)
+                  example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      responses:
+        '201':
+          description: Session created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImuSessionResponse'
+        '200':
+          description: Existing session returned (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImuSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    get:
+      summary: List IMU sessions
+      description: Get all IMU sessions for the authenticated user
+      operationId: listImuSessions
+      tags:
+        - IMU Sessions
+      parameters:
+        - name: user_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by user ID (authenticated user if omitted)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+          description: Maximum number of results
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Pagination offset
+      responses:
+        '200':
+          description: Sessions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ImuSessionSummary'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /imu/sessions/{imu_session_id}:
+    get:
+      summary: Get IMU session details
+      description: Retrieve details for a specific IMU session
+      operationId: getImuSession
+      tags:
+        - IMU Sessions
+      parameters:
+        - name: imu_session_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: IMU session ID
+      responses:
+        '200':
+          description: Session details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImuSessionDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /imu/sessions/{imu_session_id}/manifest:
+    post:
+      summary: Finalize session with manifest
+      description: |
+        Register uploaded files, verify checksums, and finalize the session.
+
+        **Idempotent:** Can be called multiple times safely.
+
+        **Validation:**
+        - Verifies blob existence in Azure Storage
+        - Validates SHA-256 checksums
+        - Updates session end_time_utc
+        - Registers files in imu_session_files table
+      operationId: finalizeManifest
+      tags:
+        - IMU Sessions
+      parameters:
+        - name: imu_session_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: IMU session ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - end_time_utc
+                - files
+              properties:
+                end_time_utc:
+                  type: string
+                  format: date-time
+                  description: Session end time (ISO 8601, UTC)
+                  example: "2025-10-16T12:05:30.987654Z"
+                files:
+                  type: array
+                  description: List of uploaded files with metadata
+                  items:
+                    type: object
+                    required:
+                      - purpose
+                      - filename
+                      - sha256_hex
+                      - bytes_size
+                    properties:
+                      purpose:
+                        type: string
+                        enum: [raw, manifest, device, calib, events]
+                        description: File type/purpose
+                      filename:
+                        type: string
+                        description: Blob filename (relative to session path)
+                        example: "raw_12345_0000.parquet"
+                      sha256_hex:
+                        type: string
+                        pattern: '^[a-f0-9]{64}$'
+                        description: SHA-256 checksum (hex)
+                      bytes_size:
+                        type: integer
+                        format: int64
+                        description: File size in bytes
+                      num_samples:
+                        type: integer
+                        format: int64
+                        description: Number of samples (for raw files)
+                      content_type:
+                        type: string
+                        description: MIME type
+                        example: "application/parquet"
+                rate_stats:
+                  type: object
+                  description: Optional actual sampling rate statistics (for non-uniform sampling)
+                  required:
+                    - samples_total
+                    - duration_ms
+                    - mean_hz
+                  properties:
+                    samples_total:
+                      type: integer
+                      format: int64
+                      minimum: 1
+                      description: Total samples across all raw files
+                      example: 842113
+                    duration_ms:
+                      type: number
+                      format: double
+                      minimum: 0
+                      description: Session duration in milliseconds (last_ts - first_ts)
+                      example: 156664.2
+                    mean_hz:
+                      type: number
+                      format: double
+                      minimum: 0
+                      description: Actual mean sample rate (samples_total / duration_sec)
+                      example: 99.8
+                    dt_ms_p50:
+                      type: number
+                      format: double
+                      description: Median inter-sample interval (milliseconds)
+                      example: 10.0
+                    dt_ms_p95:
+                      type: number
+                      format: double
+                      description: 95th percentile inter-sample interval (milliseconds)
+                      example: 10.6
+                    dt_ms_max:
+                      type: number
+                      format: double
+                      description: Maximum inter-sample interval (milliseconds)
+                      example: 24.7
+                    dropped_seq_pct:
+                      type: number
+                      format: double
+                      description: Percentage of dropped samples (if seq tracked)
+                      example: 0.0
+      responses:
+        '200':
+          description: Manifest finalized successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Manifest finalized successfully"
+                  imu_session_id:
+                    type: integer
+                    format: int64
+                  total_files:
+                    type: integer
+                  total_bytes:
+                    type: integer
+                    format: int64
+                  total_samples:
+                    type: integer
+                    format: int64
+                  end_time_utc:
+                    type: string
+                    format: date-time
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Auth0 JWT token
+
+  schemas:
+    ImuSessionResponse:
+      type: object
+      properties:
+        imu_session_id:
+          type: integer
+          format: int64
+          example: 12345
+        user_id:
+          type: string
+          example: "google-oauth2|111725496993830615484"
+        device_id:
+          type: integer
+          format: int64
+          example: 42
+        start_time_utc:
+          type: string
+          format: date-time
+          example: "2025-10-16T12:00:00.123456Z"
+        nominal_hz:
+          type: number
+          format: float
+          example: 100.0
+        coord_frame:
+          type: string
+          enum: [device, world]
+          example: "device"
+        game_session_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Linked tap-game session ID (if applicable)
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        sas_token:
+          type: object
+          description: SAS token for blob upload
+          properties:
+            container:
+              type: string
+              example: "imu-alpha"
+            path:
+              type: string
+              example: "users/google-oauth2|111725496993830615484/sessions/12345/"
+            sas_url:
+              type: string
+              description: Full SAS URL with token
+              example: "https://dojogostorage.blob.core.windows.net/imu-alpha/users/.../sessions/12345/?sv=2021-08-06&..."
+            expires_at:
+              type: string
+              format: date-time
+              description: SAS token expiration
+              example: "2025-10-16T14:00:00Z"
+
+    ImuSessionSummary:
+      type: object
+      properties:
+        imu_session_id:
+          type: integer
+          format: int64
+        user_id:
+          type: string
+        device_id:
+          type: integer
+          format: int64
+        start_time_utc:
+          type: string
+          format: date-time
+        end_time_utc:
+          type: string
+          format: date-time
+          nullable: true
+        nominal_hz:
+          type: number
+          format: float
+        coord_frame:
+          type: string
+        game_session_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    ImuSessionDetail:
+      allOf:
+        - $ref: '#/components/schemas/ImuSessionSummary'
+        - type: object
+          properties:
+            files:
+              type: array
+              items:
+                type: object
+                properties:
+                  file_id:
+                    type: integer
+                    format: int64
+                  purpose:
+                    type: string
+                    enum: [raw, manifest, device, calib, events]
+                  storage_url:
+                    type: string
+                  content_type:
+                    type: string
+                  bytes_size:
+                    type: integer
+                    format: int64
+                  sha256_hex:
+                    type: string
+                  num_samples:
+                    type: integer
+                    format: int64
+                  created_at:
+                    type: string
+                    format: date-time
+            notes:
+              type: string
+              nullable: true
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Invalid start_time_utc format"
+
+    Unauthorized:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "No authorization token provided"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "IMU session not found"
+
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Internal server error"

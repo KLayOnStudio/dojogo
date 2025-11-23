@@ -83,7 +83,9 @@ class LocalStorageService: ObservableObject {
 
     func saveUser(_ user: User) {
         do {
-            let encoded = try JSONEncoder().encode(user)
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .secondsSince1970  // Fix: Use Unix epoch, not Apple reference date
+            let encoded = try encoder.encode(user)
             userDefaults.set(encoded, forKey: userKey)
         } catch {
             print("Failed to save user: \(error)")
@@ -96,7 +98,9 @@ class LocalStorageService: ObservableObject {
         }
 
         do {
-            let user = try JSONDecoder().decode(User.self, from: data)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .secondsSince1970  // Fix: Use Unix epoch, not Apple reference date
+            let user = try decoder.decode(User.self, from: data)
             return user
         } catch {
             print("Failed to decode user: \(error)")

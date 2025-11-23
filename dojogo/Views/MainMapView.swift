@@ -42,6 +42,21 @@ struct MainMapView: View {
 
                         Spacer()
 
+                        // TEMPORARY: Token test button
+                        Button("🔑") {
+                            authViewModel.printTokenForTesting()
+                        }
+                        .font(.pixelify(size: 12, weight: .bold))
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color.green)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 0)
+                                .stroke(Color.white, lineWidth: 2)
+                        )
+                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 4)
+
                         Button("SIGN OUT") {
                             Task {
                                 await authViewModel.signOut()
