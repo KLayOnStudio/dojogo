@@ -7,7 +7,7 @@ struct APIResponse<T: Codable>: Codable {
 }
 
 struct LeaderboardResponse: Codable {
-    let totalTaps: [LeaderboardEntry]
+    let totalSwings: [LeaderboardEntry]
     let streaks: [LeaderboardEntry]
 }
 
@@ -69,14 +69,9 @@ class APIService: ObservableObject {
 
     // MARK: - Authentication Helper
 
-    private func addAuthHeaders(to request: inout URLRequest) async {
-        do {
-            let token = try await Auth0Manager.shared.getIdToken()
-            print("Successfully retrieved ID token: \(token.prefix(50))...")
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        } catch {
-            print("Failed to get ID token: \(error)")
-        }
+    private func addAuthHeaders(to request: inout URLRequest) async throws {
+        let token = try await Auth0Manager.shared.getIdToken()
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
 
     // MARK: - User Management
@@ -88,7 +83,7 @@ class APIService: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        await addAuthHeaders(to: &request)
+        try await addAuthHeaders(to: &request)
 
         let userData = ["name": user.name, "email": user.email]
         let jsonData = try JSONSerialization.data(withJSONObject: userData)
@@ -124,7 +119,7 @@ class APIService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
 
-        await addAuthHeaders(to: &request)
+        try await addAuthHeaders(to: &request)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -133,12 +128,53 @@ class APIService: ObservableObject {
             throw APIError.userNotFound
         }
 
+        if let responseString = String(data: data, encoding: .utf8) {
+            print("GetUser response body: \(responseString)")
+        }
+
         struct GetUserResponse: Codable {
-            let user: User
+            let user: UserResponse
+        }
+
+        struct UserResponse: Codable {
+            let id: String
+            let userNumber: Int?
+            let name: String
+            let nickname: String?
+            let nicknameLastChanged: Int?
+            let kendoRank: String?
+            let kendoExperienceYears: Int?
+            let kendoExperienceMonths: Int?
+            let homeDojo: String?
+            let email: String
+            let streak: Int
+            let totalCount: Int
+            let createdAt: Int?
+            let lastSessionDate: Int?
         }
 
         let apiResponse = try configuredDecoder().decode(GetUserResponse.self, from: data)
-        return apiResponse.user
+        let userResponse = apiResponse.user
+
+        // Convert to User model
+        var user = User(id: userResponse.id, name: userResponse.name, email: userResponse.email)
+        user.userNumber = userResponse.userNumber
+        user.nickname = userResponse.nickname
+        if let timestamp = userResponse.nicknameLastChanged {
+            user.nicknameLastChanged = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        }
+        user.kendoRank = userResponse.kendoRank != nil ? KendoRank(rawValue: userResponse.kendoRank!) : nil
+        user.kendoExperienceYears = userResponse.kendoExperienceYears ?? 0
+        user.kendoExperienceMonths = userResponse.kendoExperienceMonths ?? 0
+        user.homeDojo = userResponse.homeDojo
+        user.streak = userResponse.streak
+        user.totalCount = userResponse.totalCount
+        user.createdAt = userResponse.createdAt != nil ? Date(timeIntervalSince1970: TimeInterval(userResponse.createdAt!)) : Date()
+        if let lastSessionTimestamp = userResponse.lastSessionDate {
+            user.lastSessionDate = Date(timeIntervalSince1970: TimeInterval(lastSessionTimestamp))
+        }
+
+        return user
     }
 
     // MARK: - Session Management
@@ -150,7 +186,7 @@ class APIService: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        await addAuthHeaders(to: &request)
+        try await addAuthHeaders(to: &request)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -169,16 +205,34 @@ class APIService: ObservableObject {
         }
     }
 
-    func submitSession(_ session: Session) async throws -> (updatedUser: User, streak: Int) {
+    func submitSession(_ session: Session, stats: StoredSessionStats? = nil) async throws -> (updatedUser: User, streak: Int) {
         let url = URL(string: "\(baseURL)/CreateSession")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        await addAuthHeaders(to: &request)
+        try await addAuthHeaders(to: &request)
 
-        let sessionData = try JSONEncoder().encode(session)
-        request.httpBody = sessionData
+        // Build body manually to include optional stats fields
+        var body: [String: Any] = [
+            "id": session.id.uuidString,
+            "swingCount": session.swingCount,
+            "duration": session.duration,
+            "mode": session.mode.rawValue
+        ]
+        if let stageId = session.stageId {
+            body["stageId"] = stageId
+        }
+        if let stats = stats {
+            if let v = stats.tempo { body["tempo"] = v }
+            if let v = stats.avgSpeed { body["avgSpeed"] = v }
+            if let v = stats.maxSpeed { body["maxSpeed"] = v }
+            if let v = stats.maxPower { body["maxPower"] = v }
+            if let v = stats.avgReactionMs { body["avgReactionMs"] = v }
+            if let v = stats.avgStrikeTimeMs { body["avgStrikeTimeMs"] = v }
+        }
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -195,6 +249,154 @@ class APIService: ObservableObject {
 
         let apiResponse = try configuredDecoder().decode(SessionSubmissionResponse.self, from: data)
         return (updatedUser: apiResponse.user, streak: apiResponse.user.streak)
+    }
+
+    // MARK: - Fetch Sessions (with stats)
+
+    func fetchSessions(userId: String) async throws -> ([Session], [UUID: StoredSessionStats]) {
+        let url = URL(string: "\(baseURL)/GetSessions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        try await addAuthHeaders(to: &request)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+
+        struct ServerSession: Codable {
+            let id: String
+            let swingCount: Int
+            let duration: Double
+            let mode: String
+            let createdAt: Double?
+            let tempo: Double?
+            let avgSpeed: Double?
+            let maxSpeed: Double?
+            let maxPower: Double?
+            let avgReactionMs: Double?
+            let avgStrikeTimeMs: Double?
+            let stageId: Int?
+        }
+
+        struct SessionsResponse: Codable {
+            let sessions: [ServerSession]
+        }
+
+        let apiResponse = try configuredDecoder().decode(SessionsResponse.self, from: data)
+        var sessions: [Session] = []
+        var statsMap: [UUID: StoredSessionStats] = [:]
+
+        for s in apiResponse.sessions {
+            guard let uuid = UUID(uuidString: s.id) else { continue }
+            let sessionDate = s.createdAt.map { Date(timeIntervalSince1970: $0) } ?? Date()
+            let sessionMode = SessionMode(rawValue: s.mode) ?? .guided
+
+            let session = Session(
+                id: uuid,
+                userId: userId,
+                date: sessionDate,
+                swingCount: s.swingCount,
+                duration: s.duration,
+                mode: sessionMode,
+                stageId: s.stageId
+            )
+            sessions.append(session)
+
+            let hasStats = s.tempo != nil || s.avgSpeed != nil || s.maxSpeed != nil ||
+                           s.maxPower != nil || s.avgReactionMs != nil || s.avgStrikeTimeMs != nil
+            if hasStats {
+                statsMap[uuid] = StoredSessionStats(
+                    tempo: s.tempo,
+                    avgSpeed: s.avgSpeed,
+                    maxSpeed: s.maxSpeed,
+                    maxPower: s.maxPower,
+                    avgReactionMs: s.avgReactionMs,
+                    avgStrikeTimeMs: s.avgStrikeTimeMs
+                )
+            }
+        }
+
+        return (sessions, statsMap)
+    }
+
+    // MARK: - Session Data Upload
+
+    func uploadSessionData(sessionId: UUID, imuSamples: [IMUSample], cueEvents: [CueEvent]) async throws {
+        let url = URL(string: "\(baseURL)/uploadsessiondata")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // No auth — works for both authenticated and guest sessions
+
+        // Encode IMU samples to compact dictionaries (all 20 fields)
+        let encoder = JSONEncoder()
+        let imuData = try encoder.encode(imuSamples)
+        let cueData = try encoder.encode(cueEvents)
+
+        // Build the body with pre-encoded JSON arrays
+        let imuArray = try JSONSerialization.jsonObject(with: imuData)
+        let cueArray = try JSONSerialization.jsonObject(with: cueData)
+
+        let body: [String: Any] = [
+            "sessionId": sessionId.uuidString,
+            "imuSamples": imuArray,
+            "cueEvents": cueArray
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 201 else {
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("Session data upload failed: \(responseString)")
+            }
+            throw APIError.serverError
+        }
+
+        print("Session data uploaded: \(imuSamples.count) IMU samples, \(cueEvents.count) cue events")
+    }
+
+    // MARK: - Guest Sessions
+
+    func submitGuestSession(session: Session, kendoRank: KendoRank, experienceYears: Int, experienceMonths: Int, guestName: String?, deviceId: String?) async throws {
+        let url = URL(string: "\(baseURL)/createguestsession")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // No auth headers — guest endpoint
+
+        var body: [String: Any] = [
+            "id": session.id.uuidString,
+            "swingCount": session.swingCount,
+            "duration": session.duration,
+            "mode": session.mode.rawValue,
+            "kendoRank": kendoRank.rawValue,
+            "experienceYears": experienceYears,
+            "experienceMonths": experienceMonths
+        ]
+        if let name = guestName {
+            body["guestName"] = name
+        }
+        if let deviceId = deviceId {
+            body["deviceId"] = deviceId
+        }
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 201 else {
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("Guest session submission failed: \(responseString)")
+            }
+            throw APIError.serverError
+        }
     }
 
     // MARK: - Leaderboard
@@ -247,7 +449,7 @@ class APIService: ObservableObject {
             )
         }
 
-        return LeaderboardResponse(totalTaps: totalEntries, streaks: streakEntries)
+        return LeaderboardResponse(totalSwings: totalEntries, streaks: streakEntries)
     }
 
     // MARK: - User Profile
@@ -258,7 +460,7 @@ class APIService: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        await addAuthHeaders(to: &request)
+        try await addAuthHeaders(to: &request)
 
         let body = ["nickname": nickname]
         request.httpBody = try JSONEncoder().encode(body)
@@ -317,13 +519,13 @@ class APIService: ObservableObject {
         return user
     }
 
-    func updateProfile(nickname: String?, kendoRank: KendoRank?, experienceYears: Int?, experienceMonths: Int?) async throws -> User {
+    func updateProfile(nickname: String?, kendoRank: KendoRank?, experienceYears: Int?, experienceMonths: Int?, homeDojo: String? = nil) async throws -> User {
         let url = URL(string: "\(baseURL)/UpdateProfile")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        await addAuthHeaders(to: &request)
+        try await addAuthHeaders(to: &request)
 
         var body: [String: Any] = [:]
         if let nickname = nickname {
@@ -337,6 +539,9 @@ class APIService: ObservableObject {
         }
         if let experienceMonths = experienceMonths {
             body["kendoExperienceMonths"] = experienceMonths
+        }
+        if let homeDojo = homeDojo {
+            body["homeDojo"] = homeDojo
         }
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -378,6 +583,7 @@ class APIService: ObservableObject {
             let kendoRank: String?
             let kendoExperienceYears: Int?
             let kendoExperienceMonths: Int?
+            let homeDojo: String?
             let email: String
             let streak: Int
             let totalCount: Int
@@ -402,11 +608,152 @@ class APIService: ObservableObject {
         user.kendoRank = userResponse.kendoRank != nil ? KendoRank(rawValue: userResponse.kendoRank!) : nil
         user.kendoExperienceYears = userResponse.kendoExperienceYears ?? 0
         user.kendoExperienceMonths = userResponse.kendoExperienceMonths ?? 0
+        user.homeDojo = userResponse.homeDojo
         user.streak = userResponse.streak
         user.totalCount = userResponse.totalCount
         user.createdAt = userResponse.createdAt != nil ? Date(timeIntervalSince1970: TimeInterval(userResponse.createdAt!)) : Date()
 
         return user
+    }
+
+    // MARK: - Friends / Nakama
+
+    func searchUsers(query: String, limit: Int = 10) async throws -> [UserSummary] {
+        let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+        let url = URL(string: "\(baseURL)/SearchUsers?query=\(encoded)&limit=\(limit)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        try await addAuthHeaders(to: &request)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+
+        struct SearchResponse: Codable { let results: [UserSummary] }
+        return try configuredDecoder().decode(SearchResponse.self, from: data).results
+    }
+
+    func createFriendRequest(toUserId: String) async throws -> Int {
+        let url = URL(string: "\(baseURL)/CreateFriendRequest")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        try await addAuthHeaders(to: &request)
+        request.httpBody = try JSONEncoder().encode(["toUserId": toUserId])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+
+        if httpResponse.statusCode == 201 {
+            struct CreateResponse: Codable { let requestId: Int }
+            return try configuredDecoder().decode(CreateResponse.self, from: data).requestId
+        }
+
+        // Parse error message
+        if let errorResponse = try? configuredDecoder().decode([String: String].self, from: data),
+           let errorMessage = errorResponse["error"] {
+            throw NSError(domain: "APIError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorMessage])
+        }
+        throw APIError.serverError
+    }
+
+    func getFriendRequests(type: String) async throws -> [FriendRequest] {
+        let url = URL(string: "\(baseURL)/GetFriendRequests?type=\(type)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        try await addAuthHeaders(to: &request)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+
+        struct RequestsResponse: Codable { let requests: [FriendRequest] }
+        return try configuredDecoder().decode(RequestsResponse.self, from: data).requests
+    }
+
+    func respondFriendRequest(requestId: Int, action: String) async throws {
+        let url = URL(string: "\(baseURL)/RespondFriendRequest")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        try await addAuthHeaders(to: &request)
+
+        let body: [String: Any] = ["requestId": requestId, "action": action]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+    }
+
+    func getFriends() async throws -> [FriendInfo] {
+        let url = URL(string: "\(baseURL)/GetFriends")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        try await addAuthHeaders(to: &request)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+
+        struct FriendsResponse: Codable { let friends: [FriendInfo] }
+        return try configuredDecoder().decode(FriendsResponse.self, from: data).friends
+    }
+
+    func getUserInsights(userId: String) async throws -> FriendInsights {
+        let encoded = userId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? userId
+        let url = URL(string: "\(baseURL)/GetUserInsights?userId=\(encoded)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        try await addAuthHeaders(to: &request)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+
+        struct InsightsResponse: Codable { let user: FriendInsights }
+        return try configuredDecoder().decode(InsightsResponse.self, from: data).user
+    }
+
+    func getLeaderboardV2(metric: String, scope: String, page: Int = 1, pageSize: Int = 10) async throws -> LeaderboardV2Response {
+        let url = URL(string: "\(baseURL)/GetLeaderboardV2?metric=\(metric)&scope=\(scope)&page=\(page)&pageSize=\(pageSize)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        try await addAuthHeaders(to: &request)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+
+        return try configuredDecoder().decode(LeaderboardV2Response.self, from: data)
+    }
+
+    // MARK: - Dojo Names (for autocomplete)
+
+    func getDojoNames() async throws -> [String] {
+        let url = URL(string: "\(baseURL)/GetDojoNames")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+
+        struct DojoNamesResponse: Codable {
+            let dojos: [String]
+        }
+
+        let apiResponse = try configuredDecoder().decode(DojoNamesResponse.self, from: data)
+        return apiResponse.dojos
     }
 }
 

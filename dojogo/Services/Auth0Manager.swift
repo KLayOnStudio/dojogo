@@ -42,7 +42,7 @@ class Auth0Manager: ObservableObject {
         return try await withCheckedThrowingContinuation { continuation in
             Auth0
                 .webAuth()
-                .scope("openid profile email")
+                .scope("openid profile email offline_access")
                 .parameters(["screen_hint": "signup", "prompt": "select_account"])
                 .start { result in
                     switch result {
@@ -98,7 +98,7 @@ class Auth0Manager: ObservableObject {
         return try await withCheckedThrowingContinuation { continuation in
             Auth0
                 .webAuth()
-                .scope("openid profile email")
+                .scope("openid profile email offline_access")
                 .parameters(["prompt": "select_account"])
                 .start { result in
                     switch result {

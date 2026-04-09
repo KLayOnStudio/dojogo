@@ -1,21 +1,56 @@
 import Foundation
 
+enum SessionMode: String, Codable {
+    case guided = "guided"
+    case free = "free"
+}
+
 struct Session: Codable, Identifiable {
     let id: UUID
     let userId: String
     let date: Date
-    let tapCount: Int
+    let swingCount: Int
     let duration: TimeInterval
     let startTime: Date
     let endTime: Date
+    let mode: SessionMode
+    let stageId: Int?
 
-    init(userId: String, tapCount: Int, startTime: Date, endTime: Date) {
+    init(userId: String, swingCount: Int, startTime: Date, endTime: Date, mode: SessionMode = .guided, stageId: Int? = nil) {
         self.id = UUID()
         self.userId = userId
         self.date = startTime
-        self.tapCount = tapCount
+        self.swingCount = swingCount
         self.duration = endTime.timeIntervalSince(startTime)
         self.startTime = startTime
         self.endTime = endTime
+        self.mode = mode
+        self.stageId = stageId
+    }
+
+    /// Init for server-fetched sessions (known id, date + duration only)
+    init(id: UUID, userId: String, date: Date, swingCount: Int, duration: TimeInterval, mode: SessionMode = .guided, stageId: Int? = nil) {
+        self.id = id
+        self.userId = userId
+        self.date = date
+        self.swingCount = swingCount
+        self.duration = duration
+        self.startTime = date
+        self.endTime = date.addingTimeInterval(duration)
+        self.mode = mode
+        self.stageId = stageId
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        userId = try container.decode(String.self, forKey: .userId)
+        date = try container.decode(Date.self, forKey: .date)
+        swingCount = try container.decode(Int.self, forKey: .swingCount)
+        duration = try container.decode(TimeInterval.self, forKey: .duration)
+        startTime = try container.decode(Date.self, forKey: .startTime)
+        endTime = try container.decode(Date.self, forKey: .endTime)
+        mode = try container.decode(SessionMode.self, forKey: .mode)
+        stageId = try container.decodeIfPresent(Int.self, forKey: .stageId)
     }
 }

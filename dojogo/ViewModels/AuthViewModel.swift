@@ -8,6 +8,13 @@ class AuthViewModel: ObservableObject {
     @Published var currentUser: User?
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var isGuest = false
+
+    // Guest info (set by GuestInfoView before entering guest mode)
+    var guestKendoRank: KendoRank = .unranked
+    var guestExperienceYears: Int = 0
+    var guestExperienceMonths: Int = 0
+    var guestName: String?
 
     private let auth0Manager = Auth0Manager.shared
 
@@ -59,17 +66,52 @@ class AuthViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     private func loadStoredUser() {
-        if let storedUser = LocalStorageService.shared.getCurrentUser() {
-            self.currentUser = storedUser
-            print("Loaded stored user: \(storedUser.name) (ID: \(storedUser.id))")
-        } else {
+        guard let storedUser = LocalStorageService.shared.getCurrentUser() else {
             print("No stored user found")
+            return
         }
+
+        // Validate stored user matches the current Auth0 user
+        if let auth0Sub = auth0Manager.userProfile?["sub"] as? String,
+           auth0Sub != storedUser.id {
+            print("Stored user (\(storedUser.id)) doesn't match Auth0 user (\(auth0Sub)), clearing stale cache")
+            LocalStorageService.shared.clearStoredUser()
+            return
+        }
+
+        self.currentUser = storedUser
+        print("Loaded stored user: \(storedUser.name) (ID: \(storedUser.id))")
+    }
+
+    func enterGuestMode() {
+        let guestId = "guest_\(UUID().uuidString)"
+        var user = User(id: guestId, name: guestName ?? "Guest", email: "")
+        user.kendoRank = guestKendoRank
+        user.kendoExperienceYears = guestExperienceYears
+        user.kendoExperienceMonths = guestExperienceMonths
+        self.currentUser = user
+        self.isGuest = true
+        self.isAuthenticated = true
+    }
+
+    func exitGuestMode() {
+        self.currentUser = nil
+        self.isGuest = false
+        self.isAuthenticated = false
+        self.guestKendoRank = .unranked
+        self.guestExperienceYears = 0
+        self.guestExperienceMonths = 0
+        self.guestName = nil
     }
 
     func signIn() {
         isLoading = true
         errorMessage = nil
+
+        // Clear stale cached user BEFORE auth flow so the observer
+        // won't reload old data when isAuthenticated flips to true
+        LocalStorageService.shared.clearStoredUser()
+        currentUser = nil
 
         Task {
             do {
@@ -79,8 +121,7 @@ class AuthViewModel: ObservableObject {
                     self.currentUser = user
                     self.isLoading = false
 
-                    // Clear any old user data and save new user
-                    LocalStorageService.shared.clearStoredUser()
+                    // Save new user
                     LocalStorageService.shared.saveUser(user)
                     print("Saved new Auth0 user: \(user.name) (ID: \(user.id))")
                 }
@@ -96,6 +137,9 @@ class AuthViewModel: ObservableObject {
                         LocalStorageService.shared.saveUser(createdUser)
                         print("✅ Updated local storage with full user data")
                     }
+
+                    // Sync sessions from server
+                    await syncSessionsFromServer(userId: createdUser.id)
                 } catch {
                     print("❌ Failed to create user in API: \(error)")
                     print("❌ Error details: \(error.localizedDescription)")
@@ -114,6 +158,11 @@ class AuthViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // Clear stale cached user BEFORE auth flow so the observer
+        // won't reload old data when isAuthenticated flips to true
+        LocalStorageService.shared.clearStoredUser()
+        currentUser = nil
+
         Task {
             do {
                 let user = try await auth0Manager.signUp()
@@ -122,8 +171,7 @@ class AuthViewModel: ObservableObject {
                     self.currentUser = user
                     self.isLoading = false
 
-                    // Clear any old user data and save new user
-                    LocalStorageService.shared.clearStoredUser()
+                    // Save new user
                     LocalStorageService.shared.saveUser(user)
                     print("Saved new Auth0 user: \(user.name) (ID: \(user.id))")
                 }
@@ -139,6 +187,9 @@ class AuthViewModel: ObservableObject {
                         LocalStorageService.shared.saveUser(createdUser)
                         print("✅ Updated local storage with full user data")
                     }
+
+                    // Sync sessions from server
+                    await syncSessionsFromServer(userId: createdUser.id)
                 } catch {
                     print("❌ Failed to create user in API: \(error)")
                     print("❌ Error details: \(error.localizedDescription)")
@@ -166,14 +217,25 @@ class AuthViewModel: ObservableObject {
                 self.currentUser = nil
                 self.isLoading = false
 
-                // Clear local storage
-                LocalStorageService.shared.clearUserData()
+                // Only clear user credentials, keep sessions/stats/stage progress
+                LocalStorageService.shared.clearStoredUser()
             }
         } catch {
             await MainActor.run {
                 self.isLoading = false
                 self.errorMessage = error.localizedDescription
             }
+        }
+    }
+
+    private func syncSessionsFromServer(userId: String) async {
+        do {
+            let (sessions, stats) = try await APIService.shared.fetchSessions(userId: userId)
+            await MainActor.run {
+                LocalStorageService.shared.mergeSessionsFromServer(sessions, stats: stats)
+            }
+        } catch {
+            print("Session sync failed (non-fatal): \(error)")
         }
     }
 

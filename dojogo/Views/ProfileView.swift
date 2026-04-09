@@ -7,6 +7,7 @@ struct ProfileView: View {
     @State private var selectedRank: KendoRank = .unranked
     @State private var experienceYears: Int = 0
     @State private var experienceMonths: Int = 0
+    @State private var homeDojo: String = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var successMessage: String?
@@ -15,6 +16,17 @@ struct ProfileView: View {
     @State private var isEditingNickname = false
     @State private var isEditingRank = false
     @State private var isEditingExperience = false
+    @State private var isEditingHomeDojo = false
+
+    // Dojo autocomplete
+    @State private var allDojoNames: [String] = []
+    @State private var showDojoSuggestions = false
+
+    // Clipboard feedback
+    @State private var copiedToClipboard = false
+
+    // Navigation
+    @State private var showAbout = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -53,11 +65,24 @@ struct ProfileView: View {
                                     .font(.pixelifyTitle)
                                     .foregroundColor(.white)
 
-                                // User Number
+                                // User Number (tap to copy)
                                 if let userNumber = user.userNumber {
-                                    Text("Player #\(userNumber)")
-                                        .font(.pixelifySmall)
-                                        .foregroundColor(.gray)
+                                    Button(action: {
+                                        UIPasteboard.general.string = "#\(userNumber)"
+                                        copiedToClipboard = true
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                            copiedToClipboard = false
+                                        }
+                                    }) {
+                                        HStack(spacing: 6) {
+                                            Text("Player #\(userNumber)")
+                                                .font(.pixelifySmall)
+                                                .foregroundColor(.gray)
+                                            Image(systemName: copiedToClipboard ? "checkmark" : "doc.on.doc")
+                                                .font(.system(size: 10))
+                                                .foregroundColor(copiedToClipboard ? .green : .gray)
+                                        }
+                                    }
                                 }
 
                                 Divider()
@@ -66,7 +91,7 @@ struct ProfileView: View {
                                 // Stats Grid
                                 HStack(spacing: 20) {
                                     StatBox(title: "STREAK", value: "\(user.streak)", color: .orange)
-                                    StatBox(title: "TOTAL TAPS", value: "\(user.totalCount)", color: .green)
+                                    StatBox(title: "TOTAL SWINGS", value: "\(user.totalCount)", color: .green)
                                 }
                             }
                             .padding(20)
@@ -397,6 +422,135 @@ struct ProfileView: View {
                             }
                             .padding(.horizontal, 20)
 
+                            // Home Dojo Section
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text("HOME DOJO")
+                                        .font(.pixelifyBodyBold)
+                                        .foregroundColor(.white)
+
+                                    Spacer()
+
+                                    if isEditingHomeDojo {
+                                        Button(action: { saveHomeDojo() }) {
+                                            Text("CONFIRM")
+                                                .font(.pixelify(size: 10))
+                                                .foregroundColor(.black)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color.green)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 0)
+                                                        .stroke(Color.white, lineWidth: 1)
+                                                )
+                                        }
+                                        .disabled(isLoading)
+
+                                        Button(action: {
+                                            isEditingHomeDojo = false
+                                            showDojoSuggestions = false
+                                            loadUserData()  // Reset to original value
+                                        }) {
+                                            Text("CANCEL")
+                                                .font(.pixelify(size: 10))
+                                                .foregroundColor(.white)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color.red.opacity(0.7))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 0)
+                                                        .stroke(Color.white, lineWidth: 1)
+                                                )
+                                        }
+                                    } else {
+                                        Button(action: { isEditingHomeDojo = true }) {
+                                            Text("EDIT")
+                                                .font(.pixelify(size: 10))
+                                                .foregroundColor(.white)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Color.blue.opacity(0.7))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 0)
+                                                        .stroke(Color.white, lineWidth: 1)
+                                                )
+                                        }
+                                    }
+                                }
+
+                                VStack(alignment: .leading, spacing: 0) {
+                                    if isEditingHomeDojo {
+                                        TextField("", text: $homeDojo)
+                                            .placeholder(when: homeDojo.isEmpty) {
+                                                Text("Enter your home dojo")
+                                                    .font(.pixelifyBody)
+                                                    .foregroundColor(.gray)
+                                            }
+                                            .font(.pixelifyBody)
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 14)
+                                            .background(Color.gray.opacity(0.3))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 0)
+                                                    .stroke(Color.yellow, lineWidth: 2)
+                                            )
+                                            .autocapitalization(.words)
+                                            .disableAutocorrection(true)
+                                            .onChange(of: homeDojo) { newValue in
+                                                showDojoSuggestions = !newValue.isEmpty && !filteredDojoSuggestions.isEmpty
+                                            }
+
+                                        // Suggestions dropdown
+                                        if showDojoSuggestions && !filteredDojoSuggestions.isEmpty {
+                                            ScrollView {
+                                                VStack(alignment: .leading, spacing: 0) {
+                                                    ForEach(filteredDojoSuggestions.prefix(5), id: \.self) { suggestion in
+                                                        Button(action: {
+                                                            homeDojo = suggestion
+                                                            showDojoSuggestions = false
+                                                        }) {
+                                                            HStack {
+                                                                Text(suggestion)
+                                                                    .font(.pixelifyBody)
+                                                                    .foregroundColor(.white)
+                                                                Spacer()
+                                                            }
+                                                            .padding(.horizontal, 16)
+                                                            .padding(.vertical, 12)
+                                                            .background(Color.gray.opacity(0.2))
+                                                        }
+                                                        .buttonStyle(.plain)
+
+                                                        Divider()
+                                                            .background(Color.white.opacity(0.1))
+                                                    }
+                                                }
+                                            }
+                                            .frame(maxHeight: 200)
+                                            .background(Color.gray.opacity(0.3))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 0)
+                                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                            )
+                                        }
+                                    } else {
+                                        Text(user.homeDojo ?? "Not set")
+                                            .font(.pixelifyBody)
+                                            .foregroundColor(user.homeDojo != nil ? .white : .gray)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 14)
+                                            .background(Color.gray.opacity(0.1))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 0)
+                                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                            )
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 20)
+
                             // Messages
                             if let error = errorMessage {
                                 Text(error)
@@ -414,6 +568,32 @@ struct ProfileView: View {
                                     .padding(.top, 8)
                             }
 
+                            // About Link
+                            Button(action: { showAbout = true }) {
+                                HStack {
+                                    Image(systemName: "info.circle")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(.gray)
+                                    Text("About DojoGo")
+                                        .font(.pixelifyBody)
+                                        .foregroundColor(.gray)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.gray.opacity(0.5))
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                                .background(Color.gray.opacity(0.1))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 0)
+                                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 24)
+
                             Spacer()
                         }
                     }
@@ -421,9 +601,44 @@ struct ProfileView: View {
                 }
             }
         }
+        .sheet(isPresented: $showAbout) {
+            AboutView()
+        }
         .onAppear {
             // Load from cached user data first
             loadUserData()
+            loadDojoNames()
+        }
+    }
+
+    // MARK: - Computed Properties
+
+    private var filteredDojoSuggestions: [String] {
+        guard !homeDojo.isEmpty else { return [] }
+        let searchText = homeDojo.lowercased()
+        return allDojoNames.filter { $0.lowercased().contains(searchText) }
+    }
+
+    // MARK: - Dojo Names
+
+    private func loadDojoNames() {
+        // Load from cache first
+        allDojoNames = LocalStorageService.shared.getCachedDojoNames()
+
+        // Refresh from server if needed
+        if LocalStorageService.shared.shouldRefreshDojoNames() {
+            Task {
+                do {
+                    let names = try await APIService.shared.getDojoNames()
+                    await MainActor.run {
+                        allDojoNames = names
+                        LocalStorageService.shared.saveDojoNames(names)
+                    }
+                } catch {
+                    print("Failed to fetch dojo names: \(error)")
+                    // Keep using cached data
+                }
+            }
         }
     }
 
@@ -468,6 +683,7 @@ struct ProfileView: View {
         selectedRank = user.kendoRank ?? .unranked
         experienceYears = user.kendoExperienceYears
         experienceMonths = user.kendoExperienceMonths
+        homeDojo = user.homeDojo ?? ""
     }
 
     // MARK: - Individual Save Functions
@@ -584,6 +800,51 @@ struct ProfileView: View {
                 await MainActor.run {
                     isLoading = false
                     errorMessage = "Failed to update experience: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func saveHomeDojo() {
+        guard let user = authViewModel.currentUser else { return }
+        let trimmedDojo = homeDojo.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedDojo != (user.homeDojo ?? "") else {
+            errorMessage = "No changes to save"
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+        successMessage = nil
+
+        Task {
+            do {
+                let updatedUser = try await APIService.shared.updateProfile(
+                    nickname: nil,
+                    kendoRank: nil,
+                    experienceYears: nil,
+                    experienceMonths: nil,
+                    homeDojo: trimmedDojo.isEmpty ? nil : trimmedDojo
+                )
+
+                await MainActor.run {
+                    authViewModel.currentUser = updatedUser
+                    LocalStorageService.shared.saveUser(updatedUser)
+                    // Add to local cache for future autocomplete
+                    if !trimmedDojo.isEmpty {
+                        LocalStorageService.shared.addDojoNameToCache(trimmedDojo)
+                        allDojoNames = LocalStorageService.shared.getCachedDojoNames()
+                    }
+                    successMessage = "Home dojo updated successfully!"
+                    isLoading = false
+                    isEditingHomeDojo = false
+                    showDojoSuggestions = false
+                    loadUserData()
+                }
+            } catch {
+                await MainActor.run {
+                    isLoading = false
+                    errorMessage = "Failed to update home dojo: \(error.localizedDescription)"
                 }
             }
         }

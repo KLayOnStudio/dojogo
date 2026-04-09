@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AuthView: View {
     @StateObject private var authViewModel = AuthViewModel()
+    @State private var showGuestInfo = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -60,6 +61,23 @@ struct AuthView: View {
                                 )
                         }
                         .disabled(authViewModel.isLoading)
+
+                        // Try It Button (Guest Mode)
+                        Button(action: {
+                            showGuestInfo = true
+                        }) {
+                            Text("TRY IT")
+                                .font(.pixelifyButton)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: min(geometry.size.width * 0.7, 280))
+                                .frame(height: 48)
+                                .background(Color.white.opacity(0.15))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 0)
+                                        .stroke(Color.white.opacity(0.5), lineWidth: 2)
+                                )
+                        }
+                        .disabled(authViewModel.isLoading)
                     }
                     .padding(.horizontal, 20)
 
@@ -87,6 +105,10 @@ struct AuthView: View {
         }
         .fullScreenCover(isPresented: $authViewModel.isAuthenticated) {
             MainMapView()
+                .environmentObject(authViewModel)
+        }
+        .sheet(isPresented: $showGuestInfo) {
+            GuestInfoView()
                 .environmentObject(authViewModel)
         }
     }

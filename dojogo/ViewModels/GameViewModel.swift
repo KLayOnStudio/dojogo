@@ -1,21 +1,15 @@
 import Foundation
 import SwiftUI
-import AVFoundation
 
 @MainActor
 class GameViewModel: ObservableObject {
     @Published var currentSession: Session?
-    @Published var tapCount = 0
     @Published var isSessionActive = false
-    @Published var buttonPosition = CGPoint(x: 100, y: 100)
     @Published var sessionStartTime: Date?
-    @Published var lastTapTime: Date?
     @Published var sessions: [Session] = []
-    @Published var isSoundEnabled = true
 
-    private var inactivityTimer: Timer?
-    private let inactivityTimeout: TimeInterval = 20.0
-    private var audioPlayer: AVAudioPlayer?
+    // Live swing count (updated periodically during session)
+    @Published var liveSwingCount: Int = 0
 
     // IMU Manager (simulator uses mock, device uses real CoreMotion)
     #if targetEnvironment(simulator)
@@ -30,34 +24,95 @@ class GameViewModel: ObservableObject {
     @Published var detectedSwings: [SwingSegment] = []
     @Published var integrationResult: IntegrationResult?
 
-    init() {
-        setupAudioPlayer()
+    // Session stats (computed on session end)
+    @Published var sessionStats: SessionStats?
+
+    // Guided practice state (on by default, user can toggle off)
+    @Published var isGuidedMode: Bool = true
+    @Published var interSwingSec: Double = 3.0
+    @Published var useRandomInterval: Bool = false
+
+    // Stage mode
+    @Published var currentStageId: Int?
+    private var stageCueConfig: CueManager.Config?
+
+    // Guided cue system
+    private(set) var sessionClock: SessionClock?
+    @Published var cueManager: CueManager?
+    private var cueLogger: CueEventLogger?
+
+    // Real-time swing detection timer
+    private var swingDetectionTimer: Timer?
+
+    // Public getter for IMU samples
+    var imuSamples: [IMUSample] {
+        return imuManager.samples
     }
 
-    private func setupAudioPlayer() {
-        guard let soundURL = Bundle.main.url(forResource: "SFXswoosh", withExtension: "mp3") else {
-            print("Sound file not found")
-            return
-        }
+    // Public getter for cue events (guided mode only)
+    var cueEvents: [CueEvent] {
+        return cueLogger?.events ?? []
+    }
 
-        do {
-            audioPlayer = try AVAudioPlayer(contentsOf: soundURL)
-            audioPlayer?.prepareToPlay()
-        } catch {
-            print("Failed to initialize audio player: \(error)")
-        }
+    func configureForStage(_ stage: Stage) {
+        currentStageId = stage.id
+        isGuidedMode = true
+        interSwingSec = stage.cueConfig.interSwingSec
+        useRandomInterval = stage.cueConfig.useRandomInterval
+        stageCueConfig = stage.toCueManagerConfig()
+    }
+
+    func configureForFreePractice() {
+        currentStageId = nil
+        stageCueConfig = nil
     }
 
     func startSession(userId: String) {
-        tapCount = 0
         isSessionActive = true
         sessionStartTime = Date()
-        lastTapTime = Date()
-        randomizeButtonPosition()
-        startInactivityTimer()
+        sessionStats = nil
+        liveSwingCount = 0
+        detectedSwings = []
+
+        // Initialize guided cue system only when guided mode is on
+        if isGuidedMode {
+            let clock = SessionClock()
+            sessionClock = clock
+            let logger = CueEventLogger(clock: clock)
+            cueLogger = logger
+            let cueConfig: CueManager.Config
+            if let stageConfig = stageCueConfig {
+                cueConfig = stageConfig
+            } else {
+                var cfg = CueManager.Config()
+                cfg.interSwingSec = interSwingSec
+                cfg.useRandomInterval = useRandomInterval
+                cueConfig = cfg
+            }
+            let cm = CueManager(clock: clock, logger: logger, config: cueConfig)
+            cm.motionEnergyProvider = { [weak self] in
+                guard let self, let last = self.imuManager.samples.last else { return 0 }
+                return self.swingDetector.motionEnergy(for: last)
+            }
+            cueManager = cm
+        } else {
+            sessionClock = nil
+            cueLogger = nil
+            cueManager = nil
+        }
 
         // Start IMU recording (mock on simulator, real on device)
         imuManager.startRecording()
+
+        // Start periodic swing detection (~1 Hz)
+        swingDetectionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.updateLiveSwingCount()
+            }
+        }
+
+        // Guided countdown is triggered from ActionView.onAppear
+        // so overlays are visible when it fires
 
         // Log session start to database
         Task {
@@ -70,35 +125,27 @@ class GameViewModel: ObservableObject {
         }
     }
 
-    // Public getter for IMU samples
-    var imuSamples: [IMUSample] {
-        return imuManager.samples
-    }
-
     func endSession(userId: String) {
         guard let startTime = sessionStartTime else { return }
 
+        // Stop periodic detection
+        swingDetectionTimer?.invalidate()
+        swingDetectionTimer = nil
+
+        // Stop cue manager
+        cueManager?.stop()
+
         let endTime = Date()
-        let session = Session(
-            userId: userId,
-            tapCount: tapCount,
-            startTime: startTime,
-            endTime: endTime
-        )
 
-        currentSession = session
-        sessions.append(session)
         isSessionActive = false
-        inactivityTimer?.invalidate()
 
-        // Stop IMU recording (mock on simulator, real on device)
+        // Stop IMU recording
         imuManager.stopRecording()
         let sampleCount = imuManager.samples.count
-        print("🎯 IMU recording stopped. Total samples: \(sampleCount)")
+        print("IMU recording stopped. Total samples: \(sampleCount)")
 
-        // Analyze IMU data
+        // Final swing detection (authoritative)
         if sampleCount > 0 {
-            // Detect swings
             detectedSwings = swingDetector.detectSwings(in: imuManager.samples)
             print("\n" + swingDetector.diagnostics(for: imuManager.samples))
 
@@ -108,74 +155,64 @@ class GameViewModel: ObservableObject {
                 print("\n" + integrationEngine.diagnostics(for: result))
             }
 
-            // Log first few samples for debugging
-            print("\n📊 Sample data preview (full sensor suite):")
-            for i in 0..<min(3, sampleCount) {
-                let s = imuManager.samples[i]
-                print("  [\(i)] User accel: (\(s.ax), \(s.ay), \(s.az)) m/s²")
-                print("       Raw accel:  (\(s.raw_ax), \(s.raw_ay), \(s.raw_az)) m/s²")
-                print("       Gyro:       (\(s.gx), \(s.gy), \(s.gz)) rad/s")
-                print("       Quat:       (\(s.qw), \(s.qx), \(s.qy), \(s.qz))")
-                if let mx = s.mx, let my = s.my, let mz = s.mz {
-                    print("       Mag:        (\(mx), \(my), \(mz)) µT")
-                }
+            // Compute session stats
+            let cueTimestamps = isGuidedMode ? cueManager?.goCueTimestampsNs : nil
+            sessionStats = SessionStatsCalculator.compute(
+                samples: imuManager.samples,
+                swings: detectedSwings,
+                goCueTimestamps: cueTimestamps
+            )
+            if let stats = sessionStats {
+                print("""
+                Session Stats:
+                   Swings: \(stats.swingCount)
+                   Duration: \(String(format: "%.1f", stats.durationSec))s
+                   Tempo: \(stats.tempo.map { String(format: "%.1f/min", $0) } ?? "—")
+                   Avg Speed: \(stats.avgSpeed.map { String(format: "%.1f rad/s", $0) } ?? "—")
+                   Max Power: \(stats.maxPower.map { String(format: "%.1f m/s²", $0) } ?? "—")
+                """)
             }
+        }
+
+        let session = Session(
+            userId: userId,
+            swingCount: detectedSwings.count,
+            startTime: startTime,
+            endTime: endTime,
+            mode: isGuidedMode ? .guided : .free,
+            stageId: currentStageId
+        )
+
+        currentSession = session
+        sessions.append(session)
+        liveSwingCount = detectedSwings.count
+
+        // Log cue events count
+        if let logger = cueLogger, !logger.events.isEmpty {
+            print("Cue events recorded: \(logger.events.count)")
         }
 
         // Save locally
         saveSessionLocally(session)
-    }
 
-    func handleTap(userId: String) {
-        guard isSessionActive else { return }
-
-        tapCount += 1
-        lastTapTime = Date()
-        randomizeButtonPosition()
-        playTapSound()
-
-        // Trigger swing (only affects mock on simulator)
-        imuManager.triggerSwing()
-
-        // Reset inactivity timer
-        startInactivityTimer()
-    }
-
-    private func playTapSound() {
-        guard isSoundEnabled else { return }
-        audioPlayer?.currentTime = 0 // Reset to start for rapid taps
-        audioPlayer?.play()
-    }
-
-    func toggleSound() {
-        isSoundEnabled.toggle()
-    }
-
-    private func randomizeButtonPosition() {
-        let screenWidth = UIScreen.main.bounds.width
-        let screenHeight = UIScreen.main.bounds.height
-        let buttonSize: CGFloat = 60
-
-        let x = CGFloat.random(in: buttonSize...(screenWidth - buttonSize))
-        let y = CGFloat.random(in: buttonSize...(screenHeight - buttonSize))
-
-        buttonPosition = CGPoint(x: x, y: y)
-    }
-
-    private func startInactivityTimer() {
-        inactivityTimer?.invalidate()
-        inactivityTimer = Timer.scheduledTimer(withTimeInterval: inactivityTimeout, repeats: false) { _ in
-            Task { @MainActor in
-                if let userId = self.currentUserId {
-                    self.endSession(userId: userId)
-                }
-            }
+        // Save stats alongside session for Insights
+        if let stats = sessionStats {
+            LocalStorageService.shared.saveSessionStats(stats, for: session.id)
         }
     }
 
-    private var currentUserId: String? {
-        // TODO: Get from AuthViewModel
-        return "temp_user_id"
+    // MARK: - Private
+
+    private func updateLiveSwingCount() {
+        guard isSessionActive, imuManager.samples.count > 10 else { return }
+        let swings = swingDetector.detectSwings(in: imuManager.samples)
+        let previousCount = liveSwingCount
+        liveSwingCount = swings.count
+
+        // Notify cue manager when a new swing is detected
+        if swings.count > previousCount, isGuidedMode {
+            cueManager?.onSwingEnded()
+        }
     }
 
     private func saveSessionLocally(_ session: Session) {

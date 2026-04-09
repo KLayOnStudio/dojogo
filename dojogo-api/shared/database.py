@@ -83,3 +83,50 @@ def execute_query(query, params=None, fetch=False):
             cursor.close()
         if connection:
             connection.close()
+
+def execute_transaction(queries_and_params):
+    """
+    Execute multiple queries in a single transaction.
+
+    Args:
+        queries_and_params: list of (query, params) tuples
+
+    Returns:
+        list of results (fetchall for SELECTs, lastrowid for INSERTs, None otherwise)
+    """
+    connection = None
+    cursor = None
+
+    try:
+        connection = get_db_connection()
+        connection.autocommit = False
+        cursor = connection.cursor(dictionary=True)
+
+        results = []
+        for query, params in queries_and_params:
+            if params:
+                cursor.execute(query, params)
+            else:
+                cursor.execute(query)
+
+            if query.strip().upper().startswith('SELECT'):
+                results.append(cursor.fetchall())
+            elif query.strip().upper().startswith('INSERT'):
+                results.append(cursor.lastrowid)
+            else:
+                results.append(None)
+
+        connection.commit()
+        return results
+
+    except Error as e:
+        logging.error(f"Transaction error: {e}")
+        if connection:
+            connection.rollback()
+        raise
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.autocommit = True
+            connection.close()

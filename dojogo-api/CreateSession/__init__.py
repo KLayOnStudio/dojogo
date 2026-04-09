@@ -28,26 +28,73 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         user_id = req.user_id  # From auth decorator
         session_id = req_body.get('id')
-        tap_count = req_body.get('tapCount')
+        # Accept both swingCount (new) and tapCount (legacy) for backwards compat
+        swing_count = req_body.get('swingCount') or req_body.get('tapCount')
         duration = req_body.get('duration')
+        # Session mode: "guided" (default) or "free"
+        mode = req_body.get('mode', 'guided')
 
-        if not all([session_id, tap_count is not None, duration is not None]):
+        # Optional stats fields (populated by newer clients)
+        tempo = req_body.get('tempo')
+        avg_speed = req_body.get('avgSpeed')
+        max_speed = req_body.get('maxSpeed')
+        max_power = req_body.get('maxPower')
+        avg_reaction_ms = req_body.get('avgReactionMs')
+        avg_strike_time_ms = req_body.get('avgStrikeTimeMs')
+        stage_id = req_body.get('stageId')
+
+        if not all([session_id, swing_count is not None, duration is not None]):
             return func.HttpResponse(
-                json.dumps({"error": "Missing required fields: id, tapCount, duration"}),
+                json.dumps({"error": "Missing required fields: id, swingCount, duration"}),
                 status_code=400,
                 headers={"Content-Type": "application/json"}
             )
 
-        # Create session record
-        execute_query(
-            "INSERT INTO sessions (id, user_id, tap_count, duration) VALUES (%s, %s, %s, %s)",
-            (session_id, user_id, tap_count, duration)
+        # Fetch user's current rank/experience to store with session
+        user_profile = execute_query(
+            "SELECT kendo_rank, kendo_experience_years, kendo_experience_months FROM users WHERE id = %s",
+            (user_id,),
+            fetch=True
         )
+        kendo_rank = None
+        experience_years = 0
+        experience_months = 0
+        if user_profile and user_profile[0]:
+            kendo_rank = user_profile[0].get("kendo_rank")
+            experience_years = user_profile[0].get("kendo_experience_years", 0)
+            experience_months = user_profile[0].get("kendo_experience_months", 0)
+
+        # Create session record with rank/experience snapshot + stats
+        try:
+            execute_query(
+                """INSERT INTO sessions (id, user_id, swing_count, duration, mode,
+                   kendo_rank, experience_years, experience_months,
+                   tempo, avg_speed, max_speed, max_power,
+                   avg_reaction_ms, avg_strike_time_ms, stage_id)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (session_id, user_id, swing_count, duration, mode,
+                 kendo_rank, experience_years, experience_months,
+                 tempo, avg_speed, max_speed, max_power,
+                 avg_reaction_ms, avg_strike_time_ms, stage_id)
+            )
+        except Exception:
+            # Fallback if stats columns don't exist yet (pre-migration 008)
+            try:
+                execute_query(
+                    """INSERT INTO sessions (id, user_id, swing_count, duration, mode, kendo_rank, experience_years, experience_months)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (session_id, user_id, swing_count, duration, mode, kendo_rank, experience_years, experience_months)
+                )
+            except Exception:
+                execute_query(
+                    "INSERT INTO sessions (id, user_id, swing_count, duration, mode) VALUES (%s, %s, %s, %s, %s)",
+                    (session_id, user_id, swing_count, duration, mode)
+                )
 
         # Update user's total count and check for streak
         execute_query(
             "UPDATE users SET total_count = total_count + %s WHERE id = %s",
-            (tap_count, user_id)
+            (swing_count, user_id)
         )
 
         # Check streak logic based on daily activity

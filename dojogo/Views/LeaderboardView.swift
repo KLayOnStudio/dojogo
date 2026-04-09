@@ -11,18 +11,46 @@ struct LeaderboardUser: Identifiable {
 struct LeaderboardView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @Environment(\.dismiss) var dismiss
-    @State private var leaderboardType: LeaderboardType = .totalTaps
-    @State private var totalTapsLeaderboard: [LeaderboardUser] = []
-    @State private var streakLeaderboard: [LeaderboardUser] = []
+    @State private var leaderboardType: LeaderboardType = .totalSwings
+    @State private var leaderboardScope: LeaderboardScope = .global
+    @State private var entries: [LeaderboardV2Entry] = []
+    @State private var myEntry: LeaderboardV2Entry?
+    @State private var currentPage = 1
+    @State private var totalPages = 1
     @State private var isLoading = true
 
     enum LeaderboardType: CaseIterable {
-        case totalTaps, streaks
+        case totalSwings, streaks
 
         var title: String {
             switch self {
-            case .totalTaps: return "TOTAL TAPS"
+            case .totalSwings: return "TOTAL SWINGS"
             case .streaks: return "STREAKS"
+            }
+        }
+
+        var metric: String {
+            switch self {
+            case .totalSwings: return "swings"
+            case .streaks: return "streak"
+            }
+        }
+    }
+
+    enum LeaderboardScope: CaseIterable {
+        case global, friends
+
+        var title: String {
+            switch self {
+            case .global: return "ALL"
+            case .friends: return "NAKAMA"
+            }
+        }
+
+        var scope: String {
+            switch self {
+            case .global: return "global"
+            case .friends: return "friends"
             }
         }
     }
@@ -30,7 +58,6 @@ struct LeaderboardView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Dark background
                 Color.black
                     .ignoresSafeArea()
 
@@ -51,13 +78,37 @@ struct LeaderboardView: View {
                             .shadow(color: .white.opacity(0.3), radius: 2, x: 0, y: 2)
 
                         Spacer()
-                            .frame(width: 80) // Balance the back button width
+                            .frame(width: 80)
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, max(geometry.safeAreaInsets.top + 8, 20))
                     .padding(.bottom, 16)
 
-                    // Toggle Buttons
+                    // Scope Toggle (ALL / NAKAMA)
+                    HStack(spacing: 0) {
+                        ForEach(LeaderboardScope.allCases, id: \.self) { scope in
+                            Button(action: {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    leaderboardScope = scope
+                                }
+                            }) {
+                                Text(scope.title)
+                                    .font(.pixelifyBody)
+                                    .foregroundColor(leaderboardScope == scope ? .black : .white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 44)
+                                    .background(leaderboardScope == scope ? Color.cyan : Color.gray.opacity(0.3))
+                            }
+                        }
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 0)
+                            .stroke(Color.white, lineWidth: 2)
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
+
+                    // Type Toggle (TOTAL SWINGS / STREAKS)
                     HStack(spacing: 0) {
                         ForEach(LeaderboardType.allCases, id: \.self) { type in
                             Button(action: {
@@ -89,19 +140,91 @@ struct LeaderboardView: View {
                             .foregroundColor(.white)
                         Spacer()
                     } else {
-                        ScrollView {
-                            LazyVStack(spacing: 12) {
-                                ForEach(currentLeaderboard) { user in
-                                    LeaderboardRow(
-                                        user: user,
-                                        type: leaderboardType,
-                                        isCurrentUser: user.userId == authViewModel.currentUser?.id
-                                    )
-                                }
+                        VStack(spacing: 12) {
+                            ForEach(entries) { entry in
+                                LeaderboardRow(
+                                    user: LeaderboardUser(
+                                        userId: entry.userId,
+                                        name: entry.displayName,
+                                        value: entry.score,
+                                        rank: entry.rank
+                                    ),
+                                    type: leaderboardType,
+                                    isCurrentUser: entry.userId == authViewModel.currentUser?.id
+                                )
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.top, 8)
-                            .padding(.bottom, max(geometry.safeAreaInsets.bottom, 20))
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+
+                        Spacer()
+
+                        // Page navigation bar
+                        HStack {
+                            Button(action: {
+                                if currentPage > 1 {
+                                    currentPage -= 1
+                                    fetchLeaderboardData()
+                                }
+                            }) {
+                                Text("◀ PREV")
+                                    .font(.pixelifyButton)
+                                    .foregroundColor(currentPage > 1 ? .white : .gray)
+                            }
+                            .disabled(currentPage <= 1)
+
+                            Spacer()
+
+                            Text("PAGE \(currentPage) / \(totalPages)")
+                                .font(.pixelifyBody)
+                                .foregroundColor(.white)
+
+                            Spacer()
+
+                            Button(action: {
+                                if currentPage < totalPages {
+                                    currentPage += 1
+                                    fetchLeaderboardData()
+                                }
+                            }) {
+                                Text("NEXT ▶")
+                                    .font(.pixelifyButton)
+                                    .foregroundColor(currentPage < totalPages ? .white : .gray)
+                            }
+                            .disabled(currentPage >= totalPages)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 8)
+
+                        // Sticky MY RANK footer
+                        if let me = myEntry {
+                            VStack(spacing: 0) {
+                                Rectangle()
+                                    .fill(Color.white.opacity(0.2))
+                                    .frame(height: 1)
+
+                                HStack {
+                                    Text("MY RANK")
+                                        .font(.pixelify(size: 10, weight: .bold))
+                                        .foregroundColor(.cyan)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.top, 8)
+
+                                LeaderboardRow(
+                                    user: LeaderboardUser(
+                                        userId: me.userId,
+                                        name: me.displayName,
+                                        value: me.score,
+                                        rank: me.rank
+                                    ),
+                                    type: leaderboardType,
+                                    isCurrentUser: true
+                                )
+                                .padding(.horizontal, 20)
+                                .padding(.bottom, max(geometry.safeAreaInsets.bottom, 12))
+                            }
                         }
                     }
                 }
@@ -110,54 +233,40 @@ struct LeaderboardView: View {
         .onAppear {
             fetchLeaderboardData()
         }
-    }
-
-    private var currentLeaderboard: [LeaderboardUser] {
-        switch leaderboardType {
-        case .totalTaps: return totalTapsLeaderboard
-        case .streaks: return streakLeaderboard
+        .onChange(of: leaderboardType) { _ in
+            currentPage = 1
+            fetchLeaderboardData()
+        }
+        .onChange(of: leaderboardScope) { _ in
+            currentPage = 1
+            fetchLeaderboardData()
         }
     }
 
     private func fetchLeaderboardData() {
-        print("Fetching leaderboard data...")
+        isLoading = true
         Task {
             do {
-                print("Calling APIService.getLeaderboard()...")
-                let leaderboardData = try await APIService.shared.getLeaderboard()
-                print("Successfully fetched leaderboard data")
+                let response = try await APIService.shared.getLeaderboardV2(
+                    metric: leaderboardType.metric,
+                    scope: leaderboardScope.scope,
+                    page: currentPage
+                )
 
                 await MainActor.run {
-                    self.totalTapsLeaderboard = leaderboardData.totalTaps.map { entry in
-                        LeaderboardUser(userId: entry.userId, name: entry.displayName, value: entry.value, rank: entry.rank)
-                    }
-                    self.streakLeaderboard = leaderboardData.streaks.map { entry in
-                        LeaderboardUser(userId: entry.userId, name: entry.displayName, value: entry.value, rank: entry.rank)
-                    }
-                    self.isLoading = false
-                    print("Updated leaderboard UI - Total: \(self.totalTapsLeaderboard.count), Streaks: \(self.streakLeaderboard.count)")
+                    entries = response.entries
+                    myEntry = response.me
+                    totalPages = response.totalPages
+                    isLoading = false
                 }
             } catch {
                 print("Failed to fetch leaderboard: \(error)")
-
-                // Fallback to mock data
                 await MainActor.run {
-                    print("Using mock leaderboard data")
-                    self.totalTapsLeaderboard = generateMockLeaderboard(type: .totalTaps)
-                    self.streakLeaderboard = generateMockLeaderboard(type: .streaks)
-                    self.isLoading = false
+                    entries = []
+                    myEntry = nil
+                    isLoading = false
                 }
             }
-        }
-    }
-
-    private func generateMockLeaderboard(type: LeaderboardType) -> [LeaderboardUser] {
-        let names = ["Player1", "Player2", "Player3", "Player4", "Player5"]
-        return names.enumerated().map { index, name in
-            let value = type == .totalTaps
-                ? Int.random(in: 100...1000)
-                : Int.random(in: 1...30)
-            return LeaderboardUser(userId: "mock_\(index)", name: name, value: value, rank: index + 1)
         }
     }
 }
@@ -215,7 +324,7 @@ struct LeaderboardRow: View {
                     .font(.pixelifyButton)
                     .foregroundColor(.green)
 
-                Text(type == .totalTaps ? "TAPS" : "DAYS")
+                Text(type == .totalSwings ? "SWINGS" : "DAYS")
                     .font(.pixelify(size: 10))
                     .foregroundColor(.gray)
             }

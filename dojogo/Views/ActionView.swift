@@ -6,6 +6,13 @@ struct ActionView: View {
     @Environment(\.dismiss) var dismiss
     @State private var showReport = false
 
+    private func isPreSessionPhase(_ phase: CueManager.Phase) -> Bool {
+        switch phase {
+        case .idle, .countdown, .countdownGo: return true
+        default: return false
+        }
+    }
+
     private var backgroundGradient: LinearGradient {
         let hour = Calendar.current.component(.hour, from: Date())
 
@@ -36,34 +43,16 @@ struct ActionView: View {
                     .fill(backgroundGradient)
                     .ignoresSafeArea()
 
-                // Random button
-                if gameViewModel.isSessionActive {
-                    Button(action: {
-                        if let userId = authViewModel.currentUser?.id {
-                            gameViewModel.handleTap(userId: userId)
-                        }
-                    }) {
-                        Image("shinaiPixel")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: min(geometry.size.width * 0.3, 120), height: min(geometry.size.width * 0.3, 120))
-                            .overlay(
-                                Text("TAP")
-                                    .font(.pixelifyBodyBold)
-                                    .foregroundColor(.white)
-                                    .shadow(color: .black.opacity(0.7), radius: 3, x: 0, y: 2)
-                            )
-                            .shadow(color: .black.opacity(0.4), radius: 8, x: 0, y: 4)
-                    }
-                    .position(gameViewModel.buttonPosition)
-                    .animation(.easeInOut(duration: 0.3), value: gameViewModel.buttonPosition)
+                // Guided session overlays (green flash, zanshin fill, countdown)
+                if let cueManager = gameViewModel.cueManager {
+                    GuidedSessionOverlays(cueManager: cueManager)
                 }
 
                 // UI Overlay
                 VStack(spacing: 0) {
                     HStack(alignment: .center) {
-                        // Tap Counter
-                        Text("TAPS: \(gameViewModel.tapCount)")
+                        // Swing Counter
+                        Text("SWINGS: \(gameViewModel.liveSwingCount)")
                             .font(.pixelifyButton)
                             .foregroundColor(.white)
                             .padding(.horizontal, 16)
@@ -76,16 +65,17 @@ struct ActionView: View {
 
                         Spacer()
 
-                        // Mute Button
-                        Button(action: {
-                            gameViewModel.toggleSound()
-                        }) {
-                            Text(gameViewModel.isSoundEnabled ? "Sound On" : "Sound Off")
-                                .font(.pixelifySmall)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                        }
+                        // Mode indicator (read-only during session)
+                        Text(gameViewModel.isGuidedMode ? "GUIDED" : "FREE")
+                            .font(.pixelify(size: 10, weight: .bold))
+                            .foregroundColor(gameViewModel.isGuidedMode ? .black : .white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(gameViewModel.isGuidedMode ? Color.green.opacity(0.8) : Color.gray.opacity(0.5))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 0)
+                                    .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                            )
 
                         // Stop Button
                         Button(action: {
@@ -113,6 +103,16 @@ struct ActionView: View {
 
                     Spacer()
 
+                    // "KAMAETO!" label during countdown
+                    if let cueManager = gameViewModel.cueManager, isPreSessionPhase(cueManager.phase) {
+                        Text("KAMAETO!")
+                            .font(.pixelify(size: 48, weight: .bold))
+                            .foregroundColor(.black.opacity(0.7))
+                            .shadow(color: .white.opacity(0.5), radius: 4, x: 0, y: 2)
+                    }
+
+                    Spacer()
+
                     if !gameViewModel.isSessionActive {
                         Text("SESSION ENDED")
                             .font(.pixelifyHeadline)
@@ -128,6 +128,17 @@ struct ActionView: View {
                     }
                 }
             }
+        }
+        .onAppear {
+            UIApplication.shared.isIdleTimerDisabled = true
+            if gameViewModel.isGuidedMode {
+                Task {
+                    await gameViewModel.cueManager?.startCountdown()
+                }
+            }
+        }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
         }
         .onChange(of: gameViewModel.isSessionActive) { isActive in
             if !isActive && gameViewModel.currentSession != nil {

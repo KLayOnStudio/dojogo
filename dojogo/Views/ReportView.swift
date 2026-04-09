@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 struct ReportView: View {
     let session: Session
@@ -9,6 +10,8 @@ struct ReportView: View {
     @State private var isLoading = true
     @State private var showVisualization = false
     @State private var showTrajectory = false
+    @State private var showShareOptions = false
+    @State private var shareBackgroundColor: Color = .black
 
     // Data quality tracking
     @State private var actualSwings: String = ""
@@ -52,13 +55,13 @@ struct ReportView: View {
 
                     // Results Box
                     VStack(spacing: 24) {
-                        // Tap Count
+                        // Swing Count
                         HStack {
-                            Text("TOTAL TAPS:")
+                            Text("SWINGS:")
                                 .font(.pixelifyBodyBold)
                                 .foregroundColor(.white)
                             Spacer()
-                            Text("\(session.tapCount)")
+                            Text("\(session.swingCount)")
                                 .font(.pixelify(size: 24, weight: .bold))
                                 .foregroundColor(.green)
                         }
@@ -80,25 +83,27 @@ struct ReportView: View {
                         Divider()
                             .background(Color.white.opacity(0.3))
 
-                        // Current Streak
-                        HStack {
-                            Text("CURRENT STREAK:")
-                                .font(.pixelifyBodyBold)
-                                .foregroundColor(.white)
-                            Spacer()
-                            if isLoading {
-                                Text("...")
-                                    .font(.pixelify(size: 20, weight: .semiBold))
-                                    .foregroundColor(.yellow)
-                            } else {
-                                Text("\(currentStreak) DAYS")
-                                    .font(.pixelify(size: 20, weight: .semiBold))
-                                    .foregroundColor(.yellow)
+                        // Current Streak (hidden for guests)
+                        if !authViewModel.isGuest {
+                            HStack {
+                                Text("CURRENT STREAK:")
+                                    .font(.pixelifyBodyBold)
+                                    .foregroundColor(.white)
+                                Spacer()
+                                if isLoading {
+                                    Text("...")
+                                        .font(.pixelify(size: 20, weight: .semiBold))
+                                        .foregroundColor(.yellow)
+                                } else {
+                                    Text("\(currentStreak) DAYS")
+                                        .font(.pixelify(size: 20, weight: .semiBold))
+                                        .foregroundColor(.yellow)
+                                }
                             }
-                        }
 
-                        Divider()
-                            .background(Color.white.opacity(0.3))
+                            Divider()
+                                .background(Color.white.opacity(0.3))
+                        }
 
                         // Actual Swings (Editable)
                         swingCountEditor
@@ -114,6 +119,44 @@ struct ReportView: View {
 
                         Spacer()
                             .frame(height: 20)
+
+                        // Session Summary Card (stats tiles)
+                        if let stats = gameViewModel.sessionStats {
+                            SessionSummaryCard(stats: stats)
+                                .padding(.horizontal, 20)
+
+                            Spacer()
+                                .frame(height: 20)
+                        }
+
+                        // Swing Overlay Charts
+                        if !chartSegments.isEmpty {
+                            SwingOverlayChart(
+                                segments: chartSegments,
+                                samples: gameViewModel.imuSamples,
+                                title: "SWING SPEED (gx)",
+                                unit: "rad/s",
+                                color: .cyan,
+                                valueExtractor: { $0.gx }
+                            )
+                            .padding(.horizontal, 20)
+
+                            Spacer()
+                                .frame(height: 16)
+
+                            SwingOverlayChart(
+                                segments: chartSegments,
+                                samples: gameViewModel.imuSamples,
+                                title: "SWING FORCE (ay)",
+                                unit: "m/s²",
+                                color: .yellow,
+                                valueExtractor: { $0.ay }
+                            )
+                            .padding(.horizontal, 20)
+
+                            Spacer()
+                                .frame(height: 20)
+                        }
 
                         // Session Quality Section
                         qualitySection
@@ -156,44 +199,122 @@ struct ReportView: View {
                         Spacer()
                             .frame(height: 20)
 
-                        // Trajectory Visualization Button
-                        if let integrationResult = gameViewModel.integrationResult {
-                            Button(action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    showTrajectory.toggle()
-                                }
-                            }) {
-                                HStack(spacing: 8) {
-                                    Text(showTrajectory ? "HIDE TRAJECTORY" : "SHOW TRAJECTORY")
-                                        .font(.pixelifyButton)
-                                    Image(systemName: showTrajectory ? "chevron.up" : "move.3d")
-                                        .font(.system(size: 14, weight: .bold))
-                                }
-                                .foregroundColor(.black)
-                                .frame(maxWidth: min(geometry.size.width * 0.7, 280))
-                                .frame(height: 48)
-                                .background(Color.purple)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 0)
-                                        .stroke(Color.white, lineWidth: 2)
-                                )
-                                .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 3)
+                        // Trajectory Button (Coming Soon)
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                showTrajectory.toggle()
                             }
-                            .padding(.horizontal, 20)
+                        }) {
+                            HStack(spacing: 8) {
+                                Text(showTrajectory ? "HIDE TRAJECTORY" : "SHOW TRAJECTORY")
+                                    .font(.pixelifyButton)
+                                Image(systemName: showTrajectory ? "chevron.up" : "move.3d")
+                                    .font(.system(size: 14, weight: .bold))
+                            }
+                            .foregroundColor(.black)
+                            .frame(maxWidth: min(geometry.size.width * 0.7, 280))
+                            .frame(height: 48)
+                            .background(Color.purple)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 0)
+                                    .stroke(Color.white, lineWidth: 2)
+                            )
+                            .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 3)
+                        }
+                        .padding(.horizontal, 20)
 
-                            // Position Trajectory Visualization (collapsible)
-                            if showTrajectory {
-                                PositionTrajectoryView(
-                                    integrationResult: integrationResult,
-                                    swings: gameViewModel.detectedSwings
-                                )
+                        if showTrajectory {
+                            TrajectoryComingSoonView()
                                 .padding(.horizontal, 20)
                                 .padding(.top, 12)
                                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                            }
+                        }
 
-                            Spacer()
-                                .frame(height: 20)
+                        Spacer()
+                            .frame(height: 20)
+
+                        // Share Button
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showShareOptions.toggle()
+                            }
+                        }) {
+                            HStack(spacing: 8) {
+                                Text("SHARE")
+                                    .font(.pixelifyButton)
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 14, weight: .bold))
+                            }
+                            .foregroundColor(.black)
+                            .frame(maxWidth: min(geometry.size.width * 0.7, 280))
+                            .frame(height: 48)
+                            .background(Color.yellow)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 0)
+                                    .stroke(Color.white, lineWidth: 2)
+                            )
+                            .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 3)
+                        }
+                        .padding(.horizontal, 20)
+
+                        // Share options (background color picker)
+                        if showShareOptions {
+                            VStack(spacing: 12) {
+                                Text("BACKGROUND")
+                                    .font(.pixelify(size: 10, weight: .bold))
+                                    .foregroundColor(.gray)
+
+                                HStack(spacing: 16) {
+                                    shareColorButton(.black, label: "Dark")
+                                    shareColorButton(.white, label: "Light")
+                                    shareColorButton(.clear, label: "Clear")
+                                }
+
+                                Button(action: {
+                                    shareReport()
+                                }) {
+                                    Text("EXPORT")
+                                        .font(.pixelifyBodyBold)
+                                        .foregroundColor(.black)
+                                        .frame(width: 120, height: 40)
+                                        .background(Color.green)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 0)
+                                                .stroke(Color.white, lineWidth: 2)
+                                        )
+                                }
+                            }
+                            .padding(16)
+                            .background(Color.gray.opacity(0.2))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 0)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
+                            .padding(.horizontal, 20)
+                            .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                        }
+
+                        Spacer()
+                            .frame(height: 20)
+
+                        // Guest: SIGN UP CTA
+                        if authViewModel.isGuest {
+                            Button(action: {
+                                authViewModel.exitGuestMode()
+                            }) {
+                                Text("SIGN UP")
+                                    .font(.pixelifyButtonLarge)
+                                    .foregroundColor(.black)
+                                    .frame(maxWidth: min(geometry.size.width * 0.7, 280))
+                                    .frame(height: 56)
+                                    .background(Color.yellow)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 0)
+                                            .stroke(Color.white, lineWidth: 3)
+                                    )
+                                    .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+                            }
+                            .padding(.horizontal, 20)
                         }
 
                         // Continue Button
@@ -224,8 +345,9 @@ struct ReportView: View {
         }
         .onAppear {
             // Initialize actual swings with tap count
-            actualSwings = "\(session.tapCount)"
+            actualSwings = "\(session.swingCount)"
             submitSessionData()
+            saveSessionReport()
         }
     }
 
@@ -357,6 +479,130 @@ struct ReportView: View {
             )
     }
 
+    // MARK: - Chart Segments
+
+    /// For guided mode: segments from one cue to the next (full movement cycle).
+    /// For free mode: falls back to detected swing segments.
+    private var chartSegments: [ChartSegment] {
+        let cues = gameViewModel.cueEvents
+        let samples = gameViewModel.imuSamples
+
+        // Filter to action cues (the "Men!" cues that trigger swings)
+        let actionCues = cues.filter { $0.cueType == .countdownGo || $0.cueType == .postZanshinCue }
+
+        guard actionCues.count >= 2, let firstSampleTs = samples.first?.ts_ns else {
+            // Fall back to swing detector segments
+            return gameViewModel.detectedSwings.map {
+                ChartSegment(startIndex: $0.startIndex, endIndex: $0.endIndex)
+            }
+        }
+
+        // Convert cue timestamps (ms since session start) to IMU sample indices
+        var segments: [ChartSegment] = []
+        for i in 0..<(actionCues.count - 1) {
+            let cueMs = actionCues[i].visualAtMs ?? actionCues[i].scheduledAtMs
+            let nextCueMs = actionCues[i + 1].visualAtMs ?? actionCues[i + 1].scheduledAtMs
+
+            let cueNs = firstSampleTs + Int64(cueMs) * 1_000_000
+            let nextCueNs = firstSampleTs + Int64(nextCueMs) * 1_000_000
+
+            // Find closest sample indices
+            let startIdx = samples.firstIndex(where: { $0.ts_ns >= cueNs }) ?? 0
+            let endIdx = (samples.lastIndex(where: { $0.ts_ns <= nextCueNs }) ?? (samples.count - 1))
+
+            if startIdx < endIdx {
+                segments.append(ChartSegment(startIndex: startIdx, endIndex: endIdx))
+            }
+        }
+
+        return segments.isEmpty
+            ? gameViewModel.detectedSwings.map { ChartSegment(startIndex: $0.startIndex, endIndex: $0.endIndex) }
+            : segments
+    }
+
+    // MARK: - Share
+
+    @ViewBuilder
+    private func shareColorButton(_ color: Color, label: String) -> some View {
+        Button(action: {
+            shareBackgroundColor = color
+        }) {
+            VStack(spacing: 4) {
+                ZStack {
+                    // Checkerboard for transparent option
+                    if color == .clear {
+                        checkerboard
+                            .frame(width: 36, height: 36)
+                            .clipped()
+                    } else {
+                        RoundedRectangle(cornerRadius: 0)
+                            .fill(color)
+                            .frame(width: 36, height: 36)
+                    }
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: 0)
+                        .stroke(shareBackgroundColor == color ? Color.cyan : Color.white.opacity(0.3), lineWidth: shareBackgroundColor == color ? 3 : 1)
+                )
+                Text(label)
+                    .font(.pixelify(size: 9, weight: .regular))
+                    .foregroundColor(.gray)
+            }
+        }
+    }
+
+    private var checkerboard: some View {
+        Canvas { context, size in
+            let tileSize: CGFloat = 6
+            for row in 0..<Int(size.height / tileSize) + 1 {
+                for col in 0..<Int(size.width / tileSize) + 1 {
+                    let isLight = (row + col) % 2 == 0
+                    context.fill(
+                        Path(CGRect(x: CGFloat(col) * tileSize, y: CGFloat(row) * tileSize, width: tileSize, height: tileSize)),
+                        with: .color(isLight ? .gray.opacity(0.3) : .gray.opacity(0.15))
+                    )
+                }
+            }
+        }
+    }
+
+    private func shareReport() {
+        let streak: Int? = authViewModel.isGuest ? nil : currentStreak
+        let segments = chartSegments
+        let view = ShareableReportView(
+            swingCount: session.swingCount,
+            duration: session.duration,
+            streak: streak,
+            stats: gameViewModel.sessionStats,
+            segments: segments,
+            samples: gameViewModel.imuSamples,
+            backgroundColor: shareBackgroundColor
+        )
+
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 3.0  // High resolution
+        renderer.isOpaque = shareBackgroundColor != .clear
+
+        guard let image = renderer.uiImage else { return }
+
+        // Export as PNG (supports transparency)
+        guard let pngData = image.pngData() else { return }
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("DojoGo_Report.png")
+        try? pngData.write(to: tempURL)
+
+        let activityVC = UIActivityViewController(activityItems: [tempURL], applicationActivities: nil)
+
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
+            var topVC = rootVC
+            while let presented = topVC.presentedViewController {
+                topVC = presented
+            }
+            activityVC.popoverPresentationController?.sourceView = topVC.view
+            topVC.present(activityVC, animated: true)
+        }
+    }
+
     // MARK: - Helper Functions
 
     private func formatDuration(_ duration: TimeInterval) -> String {
@@ -366,12 +612,18 @@ struct ReportView: View {
     }
 
     private func submitSessionData() {
+        if authViewModel.isGuest {
+            submitGuestSessionData()
+            return
+        }
+
         guard let userId = authViewModel.currentUser?.id else { return }
 
         Task {
             do {
                 // Submit to Azure database
-                let result = try await APIService.shared.submitSession(session)
+                let storedStats: StoredSessionStats? = gameViewModel.sessionStats.map { StoredSessionStats.from($0) }
+                let result = try await APIService.shared.submitSession(session, stats: storedStats)
 
                 await MainActor.run {
                     self.currentStreak = result.streak
@@ -387,7 +639,7 @@ struct ReportView: View {
                     self.isLoading = false
 
                     if var user = authViewModel.currentUser {
-                        user.totalCount += session.tapCount
+                        user.totalCount += session.swingCount
                         user.streak = self.currentStreak
                         user.lastSessionDate = session.date
                         authViewModel.currentUser = user
@@ -396,15 +648,71 @@ struct ReportView: View {
                 }
             }
 
-            // Log quality data (will be sent to backend in future implementation)
+            // Upload raw IMU data + cue events (separate request, non-blocking)
+            await uploadRawSessionData()
+
             logQualityData()
         }
 
         print("Submitting session data: \(session)")
     }
 
+    private func submitGuestSessionData() {
+        isLoading = false  // No streak to load for guests
+
+        Task {
+            do {
+                let deviceId = await UIDevice.current.identifierForVendor?.uuidString
+                try await APIService.shared.submitGuestSession(
+                    session: session,
+                    kendoRank: authViewModel.guestKendoRank,
+                    experienceYears: authViewModel.guestExperienceYears,
+                    experienceMonths: authViewModel.guestExperienceMonths,
+                    guestName: authViewModel.guestName,
+                    deviceId: deviceId
+                )
+                print("Guest session submitted successfully")
+            } catch {
+                print("Failed to submit guest session: \(error)")
+            }
+
+            // Upload raw IMU data + cue events (separate request, non-blocking)
+            await uploadRawSessionData()
+
+            logQualityData()
+        }
+    }
+
+    private func uploadRawSessionData() async {
+        do {
+            try await APIService.shared.uploadSessionData(
+                sessionId: session.id,
+                imuSamples: gameViewModel.imuSamples,
+                cueEvents: gameViewModel.cueEvents
+            )
+        } catch {
+            print("Failed to upload session data: \(error)")
+        }
+    }
+
+    private func saveSessionReport() {
+        let storedSwings = gameViewModel.detectedSwings.map {
+            StoredSwingSegment(startIndex: $0.startIndex, endIndex: $0.endIndex)
+        }
+        let storedStats: StoredSessionStats? = gameViewModel.sessionStats.map { StoredSessionStats.from($0) }
+        let report = StoredSessionReport(
+            sessionId: session.id,
+            session: session,
+            imuSamples: gameViewModel.imuSamples,
+            cueEvents: gameViewModel.cueEvents,
+            swingSegments: storedSwings,
+            stats: storedStats
+        )
+        LocalStorageService.shared.saveSessionReport(report)
+    }
+
     private func logQualityData() {
-        let swingCount = Int(actualSwings) ?? session.tapCount
+        let swingCount = Int(actualSwings) ?? session.swingCount
         let issueReasonString: String? = {
             if sessionQuality == .issues {
                 if issueReason == .other {
@@ -418,7 +726,7 @@ struct ReportView: View {
 
         print("""
         📊 Session Quality Data:
-           - Tap Count: \(session.tapCount)
+           - Swing Count: \(session.swingCount)
            - User Reported Swings: \(swingCount)
            - Quality: \(sessionQuality.rawValue)
            - Issue Reason: \(issueReasonString ?? "N/A")
@@ -428,7 +736,7 @@ struct ReportView: View {
         // TODO: Send to backend when API endpoint is ready
         // let qualityData = SessionQualityData(
         //     sessionId: session.id,
-        //     tapCount: session.tapCount,
+        //     swingCount: session.swingCount,
         //     userReportedSwings: swingCount,
         //     quality: sessionQuality.rawValue,
         //     issueReason: issueReasonString,

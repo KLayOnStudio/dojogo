@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "badgeLeague.png",
+      "filename" : "medal48.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "badgeLeague 1.png",
+      "filename" : "medal96.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "badgeLeague 2.png",
+      "filename" : "medal144.png",
       "idiom" : "universal",
       "scale" : "3x"
     }

@@ -103,7 +103,7 @@ def require_auth(f):
         logging.info("Auth decorator called")
         try:
             token = get_token_from_header(req)
-            logging.info(f"Token extracted: {token[:50] if token else 'None'}...")
+            logging.info(f"Token extracted: {token[:50] + '...' if token else 'None'}")
 
             if not token:
                 logging.info("No token provided, returning 401")

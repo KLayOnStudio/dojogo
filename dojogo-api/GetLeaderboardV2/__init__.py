@@ -1,0 +1,164 @@
+import azure.functions as func
+import json
+import logging
+import sys
+import os
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
+
+from database import execute_query
+from auth import require_auth
+
+@require_auth
+def main(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info('GetLeaderboardV2 function processed a request.')
+
+    try:
+        user_id = req.user_id
+        metric = req.params.get('metric', 'swings')
+        scope = req.params.get('scope', 'global')
+        page = max(int(req.params.get('page', 1)), 1)
+        page_size = min(max(int(req.params.get('pageSize', 10)), 1), 50)
+
+        if metric not in ('swings', 'streak'):
+            return func.HttpResponse(
+                json.dumps({"error": "metric must be 'swings' or 'streak'"}),
+                status_code=400,
+                headers={"Content-Type": "application/json"}
+            )
+
+        if scope not in ('global', 'friends'):
+            return func.HttpResponse(
+                json.dumps({"error": "scope must be 'global' or 'friends'"}),
+                status_code=400,
+                headers={"Content-Type": "application/json"}
+            )
+
+        col = 'total_count' if metric == 'swings' else 'streak'
+        offset = (page - 1) * page_size
+
+        if scope == 'global':
+            # Total count
+            count_row = execute_query(
+                f"SELECT COUNT(*) as cnt FROM users WHERE {col} > 0",
+                fetch=True
+            )
+            total_count = count_row[0]['cnt'] if count_row else 0
+
+            # Paginated entries
+            entries = execute_query(
+                f"""SELECT id as user_id, nickname, user_number, {col} as score,
+                           RANK() OVER (ORDER BY {col} DESC) as `rank`
+                    FROM users
+                    WHERE {col} > 0
+                    ORDER BY `rank` ASC
+                    LIMIT %s OFFSET %s""",
+                (page_size, offset),
+                fetch=True
+            )
+
+            # Current user's entry with rank
+            me_rows = execute_query(
+                f"""SELECT user_id, nickname, user_number, score, `rank` FROM (
+                        SELECT id as user_id, nickname, user_number, {col} as score,
+                               RANK() OVER (ORDER BY {col} DESC) as `rank`
+                        FROM users
+                        WHERE {col} > 0
+                    ) ranked
+                    WHERE user_id = %s""",
+                (user_id,),
+                fetch=True
+            )
+        else:
+            # Friends scope: only friends + self
+            count_row = execute_query(
+                f"""WITH friend_ids AS (
+                        SELECT CASE WHEN user_id_a = %s THEN user_id_b ELSE user_id_a END as uid
+                        FROM friendships
+                        WHERE user_id_a = %s OR user_id_b = %s
+                        UNION
+                        SELECT %s as uid
+                    )
+                    SELECT COUNT(*) as cnt
+                    FROM users u
+                    JOIN friend_ids fi ON fi.uid = u.id
+                    WHERE u.{col} > 0""",
+                (user_id, user_id, user_id, user_id),
+                fetch=True
+            )
+            total_count = count_row[0]['cnt'] if count_row else 0
+
+            entries = execute_query(
+                f"""WITH friend_ids AS (
+                        SELECT CASE WHEN user_id_a = %s THEN user_id_b ELSE user_id_a END as uid
+                        FROM friendships
+                        WHERE user_id_a = %s OR user_id_b = %s
+                        UNION
+                        SELECT %s as uid
+                    )
+                    SELECT u.id as user_id, u.nickname, u.user_number, u.{col} as score,
+                           RANK() OVER (ORDER BY u.{col} DESC) as `rank`
+                    FROM users u
+                    JOIN friend_ids fi ON fi.uid = u.id
+                    WHERE u.{col} > 0
+                    ORDER BY `rank` ASC
+                    LIMIT %s OFFSET %s""",
+                (user_id, user_id, user_id, user_id, page_size, offset),
+                fetch=True
+            )
+
+            me_rows = execute_query(
+                f"""WITH friend_ids AS (
+                        SELECT CASE WHEN user_id_a = %s THEN user_id_b ELSE user_id_a END as uid
+                        FROM friendships
+                        WHERE user_id_a = %s OR user_id_b = %s
+                        UNION
+                        SELECT %s as uid
+                    )
+                    SELECT user_id, nickname, user_number, score, `rank` FROM (
+                        SELECT u.id as user_id, u.nickname, u.user_number, u.{col} as score,
+                               RANK() OVER (ORDER BY u.{col} DESC) as `rank`
+                        FROM users u
+                        JOIN friend_ids fi ON fi.uid = u.id
+                        WHERE u.{col} > 0
+                    ) ranked
+                    WHERE user_id = %s""",
+                (user_id, user_id, user_id, user_id, user_id),
+                fetch=True
+            )
+
+        import math
+        total_pages = math.ceil(total_count / page_size) if total_count > 0 else 1
+        my_entry = me_rows[0] if me_rows else None
+
+        def format_entry(row):
+            return {
+                "userId": row["user_id"],
+                "nickname": row["nickname"],
+                "userNumber": row["user_number"],
+                "score": row["score"],
+                "rank": row["rank"]
+            }
+
+        return func.HttpResponse(
+            json.dumps({
+                "metric": metric,
+                "scope": scope,
+                "entries": [format_entry(r) for r in entries],
+                "me": format_entry(my_entry) if my_entry else None,
+                "page": page,
+                "pageSize": page_size,
+                "totalCount": total_count,
+                "totalPages": total_pages
+            }, default=str),
+            status_code=200,
+            headers={"Content-Type": "application/json"}
+        )
+
+    except Exception as e:
+        logging.error(f"Error getting leaderboard v2: {e}")
+        return func.HttpResponse(
+            json.dumps({"error": "Internal server error"}),
+            status_code=500,
+            headers={"Content-Type": "application/json"}
+        )

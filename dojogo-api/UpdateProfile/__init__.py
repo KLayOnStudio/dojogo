@@ -30,6 +30,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         kendo_rank = req_body.get('kendoRank')
         kendo_experience_years = req_body.get('kendoExperienceYears')
         kendo_experience_months = req_body.get('kendoExperienceMonths')
+        home_dojo = req_body.get('homeDojo')
 
         # Check if user exists
         user = execute_query(
@@ -131,6 +132,21 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             update_fields.append("kendo_experience_months = %s")
             update_values.append(kendo_experience_months)
 
+        # Handle home dojo update
+        if home_dojo is not None:
+            if home_dojo == "":
+                # Allow clearing the home dojo
+                update_fields.append("home_dojo = NULL")
+            elif len(home_dojo) > 100:
+                return func.HttpResponse(
+                    json.dumps({"error": "Home dojo name must be 100 characters or less"}),
+                    status_code=400,
+                    headers={"Content-Type": "application/json"}
+                )
+            else:
+                update_fields.append("home_dojo = %s")
+                update_values.append(home_dojo)
+
         if not update_fields:
             return func.HttpResponse(
                 json.dumps({"error": "No fields to update"}),
@@ -146,7 +162,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         # Return updated user
         updated_user = execute_query(
-            "SELECT id, user_number, name, nickname, nickname_last_changed, kendo_rank, kendo_experience_years, kendo_experience_months, email, streak, total_count, created_at FROM users WHERE id = %s",
+            "SELECT id, user_number, name, nickname, nickname_last_changed, kendo_rank, kendo_experience_years, kendo_experience_months, home_dojo, email, streak, total_count, created_at FROM users WHERE id = %s",
             (user_id,),
             fetch=True
         )
@@ -162,6 +178,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 "kendoRank": user_data.get("kendo_rank"),
                 "kendoExperienceYears": user_data.get("kendo_experience_years"),
                 "kendoExperienceMonths": user_data.get("kendo_experience_months"),
+                "homeDojo": user_data.get("home_dojo"),
                 "email": user_data.get("email"),
                 "streak": user_data.get("streak"),
                 "totalCount": user_data.get("total_count"),
