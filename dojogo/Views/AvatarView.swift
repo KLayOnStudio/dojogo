@@ -1,8 +1,10 @@
 import SwiftUI
 
 struct AvatarView: View {
+    var avatarName: String = LocalStorageService.shared.getSelectedAvatar()
+
     var body: some View {
-        Image("kendoka")
+        Image(avatarName)
             .interpolation(.none)
             .resizable()
             .scaledToFit()

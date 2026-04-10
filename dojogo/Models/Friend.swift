@@ -100,10 +100,9 @@ struct LeaderboardV2Entry: Codable, Identifiable {
 struct LeaderboardV2Response: Codable {
     let metric: String
     let scope: String
-    let entries: [LeaderboardV2Entry]
+    let top: [LeaderboardV2Entry]
     let me: LeaderboardV2Entry?
-    let page: Int
-    let pageSize: Int
-    let totalCount: Int
-    let totalPages: Int
+    let aroundMe: [LeaderboardV2Entry]?
+
+    var entries: [LeaderboardV2Entry] { top }
 }

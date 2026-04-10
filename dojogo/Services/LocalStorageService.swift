@@ -10,6 +10,9 @@ class LocalStorageService: ObservableObject {
     private let dojoNamesKey = "cached_dojo_names"
     private let dojoNamesCacheTimeKey = "dojo_names_cache_time"
     private let stageSwingsKeyPrefix = "stage_swings_"
+    private let selectedAvatarKey = "selected_avatar"
+
+    static let availableAvatars: [String] = ["kendoka","kendoka2", "kendoka3","kendoka4","Profile_men"]
 
     private init() {}
 
@@ -232,6 +235,16 @@ class LocalStorageService: ObservableObject {
             names.sort { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
             userDefaults.set(names, forKey: dojoNamesKey)
         }
+    }
+
+    // MARK: - Avatar
+
+    func saveSelectedAvatar(_ name: String) {
+        userDefaults.set(name, forKey: selectedAvatarKey)
+    }
+
+    func getSelectedAvatar() -> String {
+        return userDefaults.string(forKey: selectedAvatarKey) ?? LocalStorageService.availableAvatars[0]
     }
 
     // MARK: - Last Session

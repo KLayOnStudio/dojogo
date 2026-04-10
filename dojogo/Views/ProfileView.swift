@@ -12,6 +12,10 @@ struct ProfileView: View {
     @State private var errorMessage: String?
     @State private var successMessage: String?
 
+    // Avatar selection
+    private let avatars = LocalStorageService.availableAvatars
+    @State private var selectedAvatarIndex: Int = 0
+
     // Edit mode states for each field
     @State private var isEditingNickname = false
     @State private var isEditingRank = false
@@ -56,6 +60,67 @@ struct ProfileView: View {
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, max(geometry.safeAreaInsets.top + 8, 20))
+
+                        // Avatar Picker
+                        VStack(spacing: 12) {
+                            Text("AVATAR")
+                                .font(.pixelifyBodyBold)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 20)
+
+                            HStack(spacing: 24) {
+                                Button(action: {
+                                    selectedAvatarIndex = (selectedAvatarIndex - 1 + avatars.count) % avatars.count
+                                    LocalStorageService.shared.saveSelectedAvatar(avatars[selectedAvatarIndex])
+                                }) {
+                                    Text("◀")
+                                        .font(.pixelifyBody)
+                                        .foregroundColor(.white)
+                                        .frame(width: 36, height: 36)
+                                        .background(Color.gray.opacity(0.3))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 0)
+                                                .stroke(Color.white.opacity(0.4), lineWidth: 1)
+                                        )
+                                }
+
+                                VStack(spacing: 8) {
+                                    Image(avatars[selectedAvatarIndex])
+                                        .interpolation(.none)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 96, height: 96)
+
+                                    Text("\(selectedAvatarIndex + 1) / \(avatars.count)")
+                                        .font(.pixelify(size: 10))
+                                        .foregroundColor(.gray)
+                                }
+
+                                Button(action: {
+                                    selectedAvatarIndex = (selectedAvatarIndex + 1) % avatars.count
+                                    LocalStorageService.shared.saveSelectedAvatar(avatars[selectedAvatarIndex])
+                                }) {
+                                    Text("▶")
+                                        .font(.pixelifyBody)
+                                        .foregroundColor(.white)
+                                        .frame(width: 36, height: 36)
+                                        .background(Color.gray.opacity(0.3))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 0)
+                                                .stroke(Color.white.opacity(0.4), lineWidth: 1)
+                                        )
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color.gray.opacity(0.1))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 0)
+                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            )
+                            .padding(.horizontal, 20)
+                        }
 
                         if let user = authViewModel.currentUser {
                             // User Stats Card
@@ -608,6 +673,9 @@ struct ProfileView: View {
             // Load from cached user data first
             loadUserData()
             loadDojoNames()
+            // Initialize avatar index from saved preference
+            let saved = LocalStorageService.shared.getSelectedAvatar()
+            selectedAvatarIndex = avatars.firstIndex(of: saved) ?? 0
         }
     }
 

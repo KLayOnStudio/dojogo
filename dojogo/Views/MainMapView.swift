@@ -18,8 +18,11 @@ struct MainMapView: View {
     @State private var stageSwings: [Int: Int] = [:]
     @State private var avatarPosition: CGPoint = Stage.allStages[0].mapPosition
     @State private var avatarFacingRight = true
+    @State private var selectedAvatar: String = LocalStorageService.shared.getSelectedAvatar()
     @State private var boatBob: CGFloat = 0
     @State private var boatSway: CGFloat = 0
+    @State private var showCampaign = false
+    @State private var campaignPulse: CGFloat = 1.0
 
     var body: some View {
         GeometryReader { geometry in
@@ -84,13 +87,43 @@ struct MainMapView: View {
                     y: Stage.freePracticePosition.y * geometry.size.height
                 )
 
+                // Campaign dojo icon
+                if !authViewModel.isGuest {
+                    Button(action: { showCampaign = true }) {
+                        VStack(spacing: 4) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.red.opacity(0.25))
+                                    .frame(width: 56, height: 56)
+                                    .scaleEffect(campaignPulse)
+
+                                Image("toriiGate")
+                                    .interpolation(.none)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 36, height: 36)
+                            }
+
+                            Text("CAMPAIGN")
+                                .font(.pixelify(size: 8, weight: .bold))
+                                .foregroundColor(.red)
+                                .shadow(color: .black, radius: 2, x: 0, y: 1)
+                        }
+                    }
+                    .position(
+                        x: 0.78 * geometry.size.width,
+                        y: 0.18 * geometry.size.height
+                    )
+                    .zIndex(4)
+                }
+
                 // Player avatar
                 let isAtBoat = avatarPosition == Stage.freePracticePosition
                 let avatarX = avatarPosition.x * geometry.size.width + (isAtBoat ? -20 : 30)
                 let avatarY = avatarPosition.y * geometry.size.height + (isAtBoat ? -30 : 0)
                 let bubbleX = min(max(avatarX, 100), geometry.size.width - 100)
 
-                AvatarView()
+                AvatarView(avatarName: selectedAvatar)
                     .scaleEffect(x: avatarFacingRight ? 1 : -1, y: 1)
                     .animation(.easeInOut(duration: 0.15), value: avatarFacingRight)
                     .offset(x: isAtBoat ? boatSway : 0, y: isAtBoat ? boatBob : 0)
@@ -330,6 +363,9 @@ struct MainMapView: View {
             withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
                 boatSway = 4
             }
+            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                campaignPulse = 1.4
+            }
         }
         .fullScreenCover(isPresented: $showActionView, onDismiss: {
             if let userId = authViewModel.currentUser?.id {
@@ -374,9 +410,14 @@ struct MainMapView: View {
             NakamaView()
                 .environmentObject(authViewModel)
         }
-        .sheet(isPresented: $showProfile) {
+        .sheet(isPresented: $showProfile, onDismiss: {
+            selectedAvatar = LocalStorageService.shared.getSelectedAvatar()
+        }) {
             ProfileView()
                 .environmentObject(authViewModel)
+        }
+        .sheet(isPresented: $showCampaign) {
+            CampaignPlaceholderView()
         }
         .sheet(isPresented: $showLastSessionReport) {
             if let report = lastSessionReport {

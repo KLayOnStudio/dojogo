@@ -15,9 +15,8 @@ struct LeaderboardView: View {
     @State private var leaderboardScope: LeaderboardScope = .global
     @State private var entries: [LeaderboardV2Entry] = []
     @State private var myEntry: LeaderboardV2Entry?
-    @State private var currentPage = 1
-    @State private var totalPages = 1
     @State private var isLoading = true
+    @State private var errorMessage: String?
 
     enum LeaderboardType: CaseIterable {
         case totalSwings, streaks
@@ -139,62 +138,42 @@ struct LeaderboardView: View {
                             .font(.pixelifyButton)
                             .foregroundColor(.white)
                         Spacer()
+                    } else if let error = errorMessage {
+                        Spacer()
+                        Text(error)
+                            .font(.pixelifySmall)
+                            .foregroundColor(.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                        Spacer()
+                    } else if entries.isEmpty {
+                        Spacer()
+                        Text("NO DATA")
+                            .font(.pixelifyButton)
+                            .foregroundColor(.gray)
+                        Spacer()
                     } else {
-                        VStack(spacing: 12) {
-                            ForEach(entries) { entry in
-                                LeaderboardRow(
-                                    user: LeaderboardUser(
-                                        userId: entry.userId,
-                                        name: entry.displayName,
-                                        value: entry.score,
-                                        rank: entry.rank
-                                    ),
-                                    type: leaderboardType,
-                                    isCurrentUser: entry.userId == authViewModel.currentUser?.id
-                                )
+                        ScrollView {
+                            VStack(spacing: 12) {
+                                ForEach(entries) { entry in
+                                    LeaderboardRow(
+                                        user: LeaderboardUser(
+                                            userId: entry.userId,
+                                            name: entry.displayName,
+                                            value: entry.score,
+                                            rank: entry.rank
+                                        ),
+                                        type: leaderboardType,
+                                        isCurrentUser: entry.userId == authViewModel.currentUser?.id
+                                    )
+                                }
                             }
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                            .padding(.bottom, 8)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 8)
 
                         Spacer()
-
-                        // Page navigation bar
-                        HStack {
-                            Button(action: {
-                                if currentPage > 1 {
-                                    currentPage -= 1
-                                    fetchLeaderboardData()
-                                }
-                            }) {
-                                Text("◀ PREV")
-                                    .font(.pixelifyButton)
-                                    .foregroundColor(currentPage > 1 ? .white : .gray)
-                            }
-                            .disabled(currentPage <= 1)
-
-                            Spacer()
-
-                            Text("PAGE \(currentPage) / \(totalPages)")
-                                .font(.pixelifyBody)
-                                .foregroundColor(.white)
-
-                            Spacer()
-
-                            Button(action: {
-                                if currentPage < totalPages {
-                                    currentPage += 1
-                                    fetchLeaderboardData()
-                                }
-                            }) {
-                                Text("NEXT ▶")
-                                    .font(.pixelifyButton)
-                                    .foregroundColor(currentPage < totalPages ? .white : .gray)
-                            }
-                            .disabled(currentPage >= totalPages)
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 8)
 
                         // Sticky MY RANK footer
                         if let me = myEntry {
@@ -233,30 +212,23 @@ struct LeaderboardView: View {
         .onAppear {
             fetchLeaderboardData()
         }
-        .onChange(of: leaderboardType) { _ in
-            currentPage = 1
-            fetchLeaderboardData()
-        }
-        .onChange(of: leaderboardScope) { _ in
-            currentPage = 1
-            fetchLeaderboardData()
-        }
+        .onChange(of: leaderboardType) { _ in fetchLeaderboardData() }
+        .onChange(of: leaderboardScope) { _ in fetchLeaderboardData() }
     }
 
     private func fetchLeaderboardData() {
         isLoading = true
+        errorMessage = nil
         Task {
             do {
                 let response = try await APIService.shared.getLeaderboardV2(
                     metric: leaderboardType.metric,
-                    scope: leaderboardScope.scope,
-                    page: currentPage
+                    scope: leaderboardScope.scope
                 )
 
                 await MainActor.run {
                     entries = response.entries
                     myEntry = response.me
-                    totalPages = response.totalPages
                     isLoading = false
                 }
             } catch {
@@ -264,6 +236,7 @@ struct LeaderboardView: View {
                 await MainActor.run {
                     entries = []
                     myEntry = nil
+                    errorMessage = "Failed to load: \(error.localizedDescription)"
                     isLoading = false
                 }
             }
