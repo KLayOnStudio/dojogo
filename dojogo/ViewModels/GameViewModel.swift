@@ -27,6 +27,9 @@ class GameViewModel: ObservableObject {
     // Session stats (computed on session end)
     @Published var sessionStats: SessionStats?
 
+    // Sensor mode (set before session start)
+    @Published var sensorMode: SensorMode = .phone
+
     // Guided practice state (on by default, user can toggle off)
     @Published var isGuidedMode: Bool = true
     @Published var interSwingSec: Double = 3.0
@@ -180,7 +183,8 @@ class GameViewModel: ObservableObject {
             startTime: startTime,
             endTime: endTime,
             mode: isGuidedMode ? .guided : .free,
-            stageId: currentStageId
+            stageId: currentStageId,
+            sensorMode: sensorMode
         )
 
         currentSession = session

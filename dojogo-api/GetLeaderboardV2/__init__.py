@@ -36,6 +36,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             )
 
         col = 'total_count' if metric == 'swings' else 'streak'
+        requesting_user_id = user_id
         offset = (page - 1) * page_size
 
         if scope == 'global':
@@ -46,7 +47,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             total_count = count_row[0]['cnt'] if count_row else 0
 
             entries = execute_query(
-                f"""SELECT id as user_id, nickname, user_number, {col} as score,
+                f"""SELECT id as user_id, nickname, user_number, {col} as score, is_public,
                            RANK() OVER (ORDER BY {col} DESC) as `rank`
                     FROM users
                     WHERE {col} > 0
@@ -57,8 +58,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             )
 
             me_rows = execute_query(
-                f"""SELECT user_id, nickname, user_number, score, `rank` FROM (
-                        SELECT id as user_id, nickname, user_number, {col} as score,
+                f"""SELECT user_id, nickname, user_number, score, is_public, `rank` FROM (
+                        SELECT id as user_id, nickname, user_number, {col} as score, is_public,
                                RANK() OVER (ORDER BY {col} DESC) as `rank`
                         FROM users
                         WHERE {col} > 0
@@ -86,7 +87,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             total_count = count_row[0]['cnt'] if count_row else 0
 
             entries = execute_query(
-                f"""SELECT u.id as user_id, u.nickname, u.user_number, u.{col} as score,
+                f"""SELECT u.id as user_id, u.nickname, u.user_number, u.{col} as score, u.is_public,
                            RANK() OVER (ORDER BY u.{col} DESC) as `rank`
                     FROM users u
                     WHERE u.{col} > 0
@@ -105,8 +106,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             )
 
             me_rows = execute_query(
-                f"""SELECT user_id, nickname, user_number, score, `rank` FROM (
-                        SELECT u.id as user_id, u.nickname, u.user_number, u.{col} as score,
+                f"""SELECT user_id, nickname, user_number, score, is_public, `rank` FROM (
+                        SELECT u.id as user_id, u.nickname, u.user_number, u.{col} as score, u.is_public,
                                RANK() OVER (ORDER BY u.{col} DESC) as `rank`
                         FROM users u
                         WHERE u.{col} > 0
@@ -127,10 +128,20 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         total_pages = math.ceil(total_count / page_size) if total_count > 0 else 1
         my_entry = me_rows[0] if me_rows else None
 
+        def mask_nickname(nickname):
+            if not nickname:
+                return "???"
+            if len(nickname) <= 2:
+                return nickname
+            return nickname[0] + "*" * (len(nickname) - 2) + nickname[-1]
+
         def format_entry(row):
+            is_own = row["user_id"] == requesting_user_id
+            is_public = bool(row.get("is_public", True))
+            nickname = row["nickname"] if (is_public or is_own) else mask_nickname(row["nickname"])
             return {
                 "userId": row["user_id"],
-                "nickname": row["nickname"],
+                "nickname": nickname,
                 "userNumber": int(row["user_number"]) if row["user_number"] is not None else None,
                 "score": int(row["score"]) if row["score"] is not None else 0,
                 "rank": int(row["rank"])

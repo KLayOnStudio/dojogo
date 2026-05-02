@@ -31,6 +31,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         kendo_experience_years = req_body.get('kendoExperienceYears')
         kendo_experience_months = req_body.get('kendoExperienceMonths')
         home_dojo = req_body.get('homeDojo')
+        is_public = req_body.get('isPublic')
 
         # Check if user exists
         user = execute_query(
@@ -147,6 +148,17 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 update_fields.append("home_dojo = %s")
                 update_values.append(home_dojo)
 
+        # Handle is_public update
+        if is_public is not None:
+            if not isinstance(is_public, bool):
+                return func.HttpResponse(
+                    json.dumps({"error": "isPublic must be a boolean"}),
+                    status_code=400,
+                    headers={"Content-Type": "application/json"}
+                )
+            update_fields.append("is_public = %s")
+            update_values.append(is_public)
+
         if not update_fields:
             return func.HttpResponse(
                 json.dumps({"error": "No fields to update"}),
@@ -162,7 +174,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         # Return updated user
         updated_user = execute_query(
-            "SELECT id, user_number, name, nickname, nickname_last_changed, kendo_rank, kendo_experience_years, kendo_experience_months, home_dojo, email, streak, total_count, created_at FROM users WHERE id = %s",
+            "SELECT id, user_number, name, nickname, nickname_last_changed, kendo_rank, kendo_experience_years, kendo_experience_months, home_dojo, email, streak, total_count, created_at, is_public FROM users WHERE id = %s",
             (user_id,),
             fetch=True
         )
@@ -182,7 +194,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 "email": user_data.get("email"),
                 "streak": user_data.get("streak"),
                 "totalCount": user_data.get("total_count"),
-                "createdAt": datetime_to_timestamp(user_data.get("created_at"))
+                "createdAt": datetime_to_timestamp(user_data.get("created_at")),
+                "isPublic": bool(user_data.get("is_public", True))
             }
 
             return func.HttpResponse(

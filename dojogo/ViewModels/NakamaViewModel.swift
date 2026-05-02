@@ -3,8 +3,16 @@ import Combine
 
 @MainActor
 class NakamaViewModel: ObservableObject {
+    enum SearchMode {
+        case kenshi, dojo
+    }
+
+    @Published var searchMode: SearchMode = .kenshi
     @Published var searchQuery = ""
     @Published var searchResults: [UserSummary] = []
+    @Published var dojoQuery = ""
+    @Published var dojoResults: [UserSummary] = []
+    @Published var isSearchingDojo = false
     @Published var incomingRequests: [FriendRequest] = []
     @Published var outgoingRequests: [FriendRequest] = []
     @Published var friends: [FriendInfo] = []
@@ -13,6 +21,7 @@ class NakamaViewModel: ObservableObject {
     @Published var errorMessage: String?
 
     private var searchCancellable: AnyCancellable?
+    private var dojoSearchCancellable: AnyCancellable?
 
     init() {
         searchCancellable = $searchQuery
@@ -21,6 +30,14 @@ class NakamaViewModel: ObservableObject {
             .sink { [weak self] query in
                 guard let self = self else { return }
                 Task { await self.performSearch(query: query) }
+            }
+
+        dojoSearchCancellable = $dojoQuery
+            .debounce(for: .milliseconds(400), scheduler: RunLoop.main)
+            .removeDuplicates()
+            .sink { [weak self] query in
+                guard let self = self else { return }
+                Task { await self.performDojoSearch(query: query) }
             }
     }
 
@@ -50,11 +67,29 @@ class NakamaViewModel: ObservableObject {
         isSearching = false
     }
 
+    private func performDojoSearch(query: String) async {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            dojoResults = []
+            return
+        }
+
+        isSearchingDojo = true
+        do {
+            let results = try await APIService.shared.searchByDojo(dojo: trimmed)
+            dojoResults = results
+        } catch {
+            print("Dojo search failed: \(error)")
+            dojoResults = []
+        }
+        isSearchingDojo = false
+    }
+
     func sendFriendRequest(to user: UserSummary) async {
         do {
             _ = try await APIService.shared.createFriendRequest(toUserId: user.userId)
-            // Remove from search results, refresh outgoing
             searchResults.removeAll { $0.userId == user.userId }
+            dojoResults.removeAll { $0.userId == user.userId }
             await loadFriendRequests()
         } catch {
             errorMessage = error.localizedDescription

@@ -4,6 +4,8 @@ struct MainMapView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @StateObject private var gameViewModel = GameViewModel()
     @State private var showActionView = false
+    @State private var showSensorPicker = false
+    @State private var showSessionIntro = false
     @State private var showLeaderboard = false
     @State private var showInsights = false
     @State private var showNakama = false
@@ -21,8 +23,14 @@ struct MainMapView: View {
     @State private var selectedAvatar: String = LocalStorageService.shared.getSelectedAvatar()
     @State private var boatBob: CGFloat = 0
     @State private var boatSway: CGFloat = 0
+    @State private var showAnnouncements = false
+    @State private var hasUnreadAnnouncements = false
     @State private var showCampaign = false
+    @State private var campaignSeen = false
     @State private var campaignPulse: CGFloat = 1.0
+    @State private var isPlayingEnterAnim = false
+    @State private var enterFrameIndex = 0
+    private let enterFrames = (1...3).map { "CampaignEnter400_\($0)" }
 
     var body: some View {
         GeometryReader { geometry in
@@ -89,30 +97,49 @@ struct MainMapView: View {
 
                 // Campaign dojo icon
                 if !authViewModel.isGuest {
-                    Button(action: { showCampaign = true }) {
+                    Button(action: {
+                        guard !isPlayingEnterAnim else { return }
+                        if let userId = authViewModel.currentUser?.id {
+                            LocalStorageService.shared.markCampaignAsSeen(for: userId)
+                        }
+                        campaignSeen = true
+                        isPlayingEnterAnim = true
+                        enterFrameIndex = 0
+                        Task {
+                            for i in 0..<enterFrames.count {
+                                await MainActor.run { enterFrameIndex = i }
+                                try? await Task.sleep(nanoseconds: 120_000_000)
+                            }
+                            await MainActor.run {
+                                isPlayingEnterAnim = false
+                                enterFrameIndex = 0
+                                showCampaign = true
+                            }
+                        }
+                    }) {
                         VStack(spacing: 4) {
                             ZStack {
-                                Circle()
-                                    .fill(Color.red.opacity(0.25))
-                                    .frame(width: 56, height: 56)
-                                    .scaleEffect(campaignPulse)
-
-                                Image("toriiGate")
-                                    .interpolation(.none)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 36, height: 36)
+                                if !campaignSeen {
+                                    Circle()
+                                        .fill(Color(red: 0.68, green: 0.93, blue: 0.93).opacity(0.5))
+                                        .frame(width: 117, height: 117)
+                                        .scaleEffect(campaignPulse)
+                                }
+                                CampaignIconView(
+                                    isPlayingEnterAnim: isPlayingEnterAnim,
+                                    enterFrameIndex: enterFrameIndex
+                                )
                             }
 
                             Text("CAMPAIGN")
-                                .font(.pixelify(size: 8, weight: .bold))
-                                .foregroundColor(.red)
+                                .font(.pixelify(size: 16, weight: .bold))
+                                .foregroundColor(Color(red: 0.68, green: 0.93, blue: 0.93))
                                 .shadow(color: .black, radius: 2, x: 0, y: 1)
                         }
                     }
                     .position(
-                        x: 0.78 * geometry.size.width,
-                        y: 0.18 * geometry.size.height
+                        x: 0.82 * geometry.size.width,
+                        y: 0.5 * geometry.size.height - 100
                     )
                     .zIndex(4)
                 }
@@ -259,13 +286,23 @@ struct MainMapView: View {
 
                     // Navigation Bar
                     HStack(spacing: 0) {
-                        // Home Button (current page)
-                        Button(action: {}) {
+                        // Home Button (announcements board)
+                        Button(action: {
+                            showAnnouncements = true
+                        }) {
                             VStack(spacing: 6) {
-                                Image("dojoIcon")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 36, height: 36)
+                                ZStack(alignment: .topTrailing) {
+                                    Image("dojoIcon")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 36, height: 36)
+                                    if hasUnreadAnnouncements {
+                                        Circle()
+                                            .fill(Color.red)
+                                            .frame(width: 10, height: 10)
+                                            .offset(x: 2, y: -2)
+                                    }
+                                }
                                 Text("HOME")
                                     .font(.pixelify(size: 9, weight: .bold))
                                     .foregroundColor(.white)
@@ -363,8 +400,24 @@ struct MainMapView: View {
             withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
                 boatSway = 4
             }
-            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-                campaignPulse = 1.4
+            if let userId = authViewModel.currentUser?.id {
+                campaignSeen = LocalStorageService.shared.hasCampaignBeenSeen(for: userId)
+            }
+            if !campaignSeen {
+                campaignPulse = 1.0
+                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                    campaignPulse = 1.4
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showSensorPicker) {
+            SensorModePickerView(isPresented: $showSensorPicker) { mode in
+                afterSensorPicked(mode)
+            }
+        }
+        .fullScreenCover(isPresented: $showSessionIntro) {
+            SessionIntroView(isPresented: $showSessionIntro) {
+                launchSession()
             }
         }
         .fullScreenCover(isPresented: $showActionView, onDismiss: {
@@ -424,6 +477,11 @@ struct MainMapView: View {
                 SavedReportView(report: report)
             }
         }
+        .sheet(isPresented: $showAnnouncements, onDismiss: {
+            hasUnreadAnnouncements = false
+        }) {
+            AnnouncementBoardView()
+        }
     }
 
     /// The first incomplete unlocked stage (or last stage if all completed)
@@ -448,16 +506,46 @@ struct MainMapView: View {
         if let current = currentStage {
             avatarPosition = current.mapPosition
         }
+        Task {
+            await checkAnnouncements()
+        }
+    }
+
+    private func checkAnnouncements() async {
+        do {
+            let items = try await APIService.shared.getAnnouncements()
+            guard let newest = items.first else { return }
+            let lastSeen = LocalStorageService.shared.getLastSeenAnnouncementId()
+            if newest.id > lastSeen {
+                await MainActor.run {
+                    hasUnreadAnnouncements = true
+                    showAnnouncements = true
+                }
+            }
+        } catch {
+            print("Failed to check announcements: \(error)")
+        }
     }
 
     private func startStageSession(_ stage: Stage) {
-        guard let userId = authViewModel.currentUser?.id else { return }
         gameViewModel.configureForStage(stage)
-        gameViewModel.startSession(userId: userId)
-        showActionView = true
+        showSensorPicker = true
     }
 
     private func startFreePracticeSession() {
+        showSensorPicker = true
+    }
+
+    private func afterSensorPicked(_ mode: SensorMode) {
+        gameViewModel.sensorMode = mode
+        if LocalStorageService.shared.hasSeenSessionIntro() {
+            launchSession()
+        } else {
+            showSessionIntro = true
+        }
+    }
+
+    private func launchSession() {
         guard let userId = authViewModel.currentUser?.id else { return }
         gameViewModel.startSession(userId: userId)
         showActionView = true
@@ -470,6 +558,35 @@ struct MainMapView: View {
             } catch {
                 print("Failed to log session start: \(error.localizedDescription)")
             }
+        }
+    }
+}
+
+struct CampaignIconView: View {
+    let isPlayingEnterAnim: Bool
+    let enterFrameIndex: Int
+
+    @State private var frameIndex = 0
+    private let frames = (1...5).map { "SkuraCampaign400_\($0)" }
+    private let enterFrames = (1...3).map { "CampaignEnter400_\($0)" }
+    private let timer = Timer.publish(every: 0.15, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        if isPlayingEnterAnim {
+            Image(enterFrames[enterFrameIndex])
+                .interpolation(.none)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 100, height: 100)
+        } else {
+            Image(frames[frameIndex])
+                .interpolation(.none)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 100, height: 100)
+                .onReceive(timer) { _ in
+                    frameIndex = (frameIndex + 1) % frames.count
+                }
         }
     }
 }

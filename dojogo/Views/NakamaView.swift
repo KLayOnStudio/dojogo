@@ -5,7 +5,6 @@ struct NakamaView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var viewModel = NakamaViewModel()
     @State private var selectedFriend: FriendInfo?
-    @State private var isSearchFocused = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -37,15 +36,23 @@ struct NakamaView: View {
 
                     ScrollView {
                         VStack(spacing: 20) {
-                            // Search Bar
-                            searchSection
+                            // Search mode toggle
+                            searchModeToggle
 
-                            // Search Results
-                            if !viewModel.searchResults.isEmpty {
-                                searchResultsSection
+                            // Search input
+                            if viewModel.searchMode == .kenshi {
+                                kenshiSearchSection
+                                if !viewModel.searchResults.isEmpty {
+                                    searchResultsSection(results: viewModel.searchResults)
+                                }
+                            } else {
+                                dojoSearchSection
+                                if !viewModel.dojoResults.isEmpty {
+                                    searchResultsSection(results: viewModel.dojoResults)
+                                }
                             }
 
-                            // Requests Section
+                            // Requests
                             if !viewModel.incomingRequests.isEmpty || !viewModel.outgoingRequests.isEmpty {
                                 requestsSection
                             }
@@ -67,27 +74,74 @@ struct NakamaView: View {
         }
     }
 
-    // MARK: - Search
+    // MARK: - Search Mode Toggle
 
-    private var searchSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("FIND KENSHI")
-                .font(.pixelifyBodyBold)
+    private var searchModeToggle: some View {
+        HStack(spacing: 0) {
+            ForEach([NakamaViewModel.SearchMode.kenshi, .dojo], id: \.self) { mode in
+                Button(action: { viewModel.searchMode = mode }) {
+                    Text(mode == .kenshi ? "FIND KENSHI" : "FIND DOJO")
+                        .font(.pixelify(size: 11, weight: .bold))
+                        .foregroundColor(viewModel.searchMode == mode ? .black : .gray)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(viewModel.searchMode == mode ? Color.yellow : Color.clear)
+                }
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 0)
+                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+        )
+    }
+
+    // MARK: - Kenshi Search
+
+    private var kenshiSearchSection: some View {
+        HStack {
+            TextField("", text: $viewModel.searchQuery)
+                .placeholder(when: viewModel.searchQuery.isEmpty) {
+                    Text("Search by nickname or #number...")
+                        .font(.pixelifyBody)
+                        .foregroundColor(.gray)
+                }
+                .font(.pixelifyBody)
                 .foregroundColor(.white)
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
 
+            if viewModel.isSearching {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    .scaleEffect(0.8)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color.gray.opacity(0.2))
+        .overlay(
+            RoundedRectangle(cornerRadius: 0)
+                .stroke(viewModel.searchQuery.isEmpty ? Color.white.opacity(0.3) : Color.yellow, lineWidth: viewModel.searchQuery.isEmpty ? 1 : 2)
+        )
+    }
+
+    // MARK: - Dojo Search
+
+    private var dojoSearchSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
-                TextField("", text: $viewModel.searchQuery)
-                    .placeholder(when: viewModel.searchQuery.isEmpty) {
-                        Text("Search by nickname...")
+                TextField("", text: $viewModel.dojoQuery)
+                    .placeholder(when: viewModel.dojoQuery.isEmpty) {
+                        Text("Enter dojo name...")
                             .font(.pixelifyBody)
                             .foregroundColor(.gray)
                     }
                     .font(.pixelifyBody)
                     .foregroundColor(.white)
-                    .autocapitalization(.none)
+                    .autocapitalization(.words)
                     .disableAutocorrection(true)
 
-                if viewModel.isSearching {
+                if viewModel.isSearchingDojo {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .scaleEffect(0.8)
@@ -98,16 +152,25 @@ struct NakamaView: View {
             .background(Color.gray.opacity(0.2))
             .overlay(
                 RoundedRectangle(cornerRadius: 0)
-                    .stroke(viewModel.searchQuery.isEmpty ? Color.white.opacity(0.3) : Color.yellow, lineWidth: viewModel.searchQuery.isEmpty ? 1 : 2)
+                    .stroke(viewModel.dojoQuery.isEmpty ? Color.white.opacity(0.3) : Color.cyan, lineWidth: viewModel.dojoQuery.isEmpty ? 1 : 2)
             )
+
+            if !viewModel.dojoQuery.isEmpty && !viewModel.isSearchingDojo && viewModel.dojoResults.isEmpty {
+                Text("No public members found for this dojo.")
+                    .font(.pixelifySmall)
+                    .foregroundColor(.gray)
+            }
         }
     }
 
-    // MARK: - Search Results
+    // MARK: - Search Results (shared)
 
-    private var searchResultsSection: some View {
+    private func searchResultsSection(results: [UserSummary]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(viewModel.searchResults) { user in
+            let alreadyFriendIds = Set(viewModel.friends.map { $0.userId })
+            let pendingIds = Set((viewModel.outgoingRequests + viewModel.incomingRequests).map { $0.userId })
+
+            ForEach(results) { user in
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(user.displayName)
@@ -123,19 +186,33 @@ struct NakamaView: View {
 
                     Spacer()
 
-                    Button(action: {
-                        Task { await viewModel.sendFriendRequest(to: user) }
-                    }) {
-                        Text("ADD")
-                            .font(.pixelify(size: 12, weight: .bold))
-                            .foregroundColor(.black)
-                            .padding(.horizontal, 16)
+                    if alreadyFriendIds.contains(user.userId) {
+                        Text("NAKAMA")
+                            .font(.pixelify(size: 10, weight: .bold))
+                            .foregroundColor(.green)
+                            .padding(.horizontal, 12)
                             .padding(.vertical, 8)
-                            .background(Color.yellow)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 0)
-                                    .stroke(Color.white, lineWidth: 1)
-                            )
+                    } else if pendingIds.contains(user.userId) {
+                        Text("PENDING")
+                            .font(.pixelify(size: 10, weight: .bold))
+                            .foregroundColor(.orange)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                    } else {
+                        Button(action: {
+                            Task { await viewModel.sendFriendRequest(to: user) }
+                        }) {
+                            Text("ADD")
+                                .font(.pixelify(size: 12, weight: .bold))
+                                .foregroundColor(.black)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.yellow)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 0)
+                                        .stroke(Color.white, lineWidth: 1)
+                                )
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
@@ -157,7 +234,6 @@ struct NakamaView: View {
                 .font(.pixelifyBodyBold)
                 .foregroundColor(.white)
 
-            // Incoming
             ForEach(viewModel.incomingRequests) { request in
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
@@ -213,7 +289,6 @@ struct NakamaView: View {
                 )
             }
 
-            // Outgoing
             ForEach(viewModel.outgoingRequests) { request in
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {

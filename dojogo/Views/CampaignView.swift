@@ -3,30 +3,47 @@ import SwiftUI
 struct CampaignView: View {
     @Environment(\.dismiss) var dismiss
 
-    // Debug flags — set both to false before shipping
-    private let debugForceActive = false
-    private let campaignEnabled = false  // flip to true when API is ready
-    @State private var hasJoined = false
+    @State private var leaderboardData: CampaignLeaderboardResponse? = nil
+    @State private var isLoading = true
+    @State private var isJoining = false
+    @State private var showRules = false
+    @State private var pendingRequestIds: Set<String> = []   // optimistic UI
 
-    private let campaignName = "Sugiyama Suburi Challenge"
-    private let description = "Hey Miyoga kenshis! You know I've been building this app for a year now — it's finally time to put it out there. I'd love for you to be part of this from the beginning. Every suburi you log helps me move forward, and I genuinely believe we can build something that changes how our whole community practices kendo. Let's do this together."
-    private let rules = "Score = Total Swings + (Max Streak × 50). Swings and streak are counted only within the campaign window."
-    private let prize = "Kikentai Merch — design in progress, stay tuned!"
-    private let prizeURL = URL(string: "https://klayonstudio.com/kikentailookbook.html")!
-    private let startDate = Calendar.current.date(from: DateComponents(year: 2026, month: 5, day: 4))!
-    private let endDate = Calendar.current.date(from: DateComponents(year: 2026, month: 5, day: 17))!
+    // Sprite animation
+    @State private var frameIndex = 0
+    private let frames = (1...5).map { "SkuraCampaign400_\($0)" }
+    private let animTimer = Timer.publish(every: 0.15, on: .main, in: .common).autoconnect()
+
+    private var campaign: Campaign? { leaderboardData?.campaign }
+    private var isParticipant: Bool { leaderboardData?.isParticipant ?? false }
+    private var entries: [CampaignLeaderboardEntry] { leaderboardData?.entries ?? [] }
+    private var participantCount: Int { leaderboardData?.participantCount ?? 0 }
+
+    private var campaignStarted: Bool {
+        guard let c = campaign else { return false }
+        return Date() >= c.startDate
+    }
 
     private var status: CampaignStatus {
-        if debugForceActive { return .active }
+        guard let c = campaign else { return .upcoming }
         let now = Date()
-        if now < startDate { return .upcoming }
-        if now > endDate { return .ended }
+        if now < c.startDate { return .upcoming }
+        if now > c.endDate { return .ended }
         return .active
+    }
+
+    private var daysUntilStart: Int {
+        guard let c = campaign else { return 0 }
+        return max(Calendar.current.dateComponents([.day], from: Date(), to: c.startDate).day ?? 0, 0)
+    }
+
+    private var daysRemaining: Int {
+        guard let c = campaign else { return 0 }
+        return max(Calendar.current.dateComponents([.day], from: Date(), to: c.endDate).day ?? 0, 0)
     }
 
     enum CampaignStatus {
         case upcoming, active, ended
-
         var label: String {
             switch self {
             case .upcoming: return "UPCOMING"
@@ -34,7 +51,6 @@ struct CampaignView: View {
             case .ended: return "ENDED"
             }
         }
-
         var color: Color {
             switch self {
             case .upcoming: return .cyan
@@ -44,284 +60,484 @@ struct CampaignView: View {
         }
     }
 
-    private var daysRemaining: Int {
-        Calendar.current.dateComponents([.day], from: Date(), to: endDate).day ?? 0
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Button(action: { dismiss() }) {
+                        Text("← BACK")
+                            .font(.pixelifyButton)
+                            .foregroundColor(.white)
+                    }
+                    Spacer()
+                    Text("CAMPAIGN")
+                        .font(.pixelifyHeadline)
+                        .foregroundColor(.white)
+                    Spacer()
+                    Button(action: { showRules = true }) {
+                        Text("RULES")
+                            .font(.pixelify(size: 11, weight: .bold))
+                            .foregroundColor(.cyan)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 0)
+                                    .stroke(Color.cyan.opacity(0.6), lineWidth: 1)
+                            )
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 16)
+
+                if isLoading {
+                    Spacer()
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    Spacer()
+                } else {
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            heroSection
+
+                            if status != .ended {
+                                joinSection
+                                    .padding(.horizontal, 20)
+                                    .padding(.bottom, 20)
+                            }
+
+                            Divider()
+                                .background(Color.white.opacity(0.15))
+                                .padding(.horizontal, 20)
+
+                            leaderboardSection
+                                .padding(.bottom, 40)
+                        }
+                    }
+                }
+            }
+        }
+        .task {
+            await loadLeaderboard()
+        }
+        .sheet(isPresented: $showRules) {
+            CampaignRulesSheet(campaign: campaign)
+        }
     }
 
-    private var daysUntilStart: Int {
-        Calendar.current.dateComponents([.day], from: Date(), to: startDate).day ?? 0
+    // MARK: - Hero Section
+
+    private var heroSection: some View {
+        VStack(spacing: 10) {
+            Image(frames[frameIndex])
+                .interpolation(.none)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 120, height: 120)
+                .onReceive(animTimer) { _ in
+                    frameIndex = (frameIndex + 1) % frames.count
+                }
+
+            Text(status.label)
+                .font(.pixelify(size: 10, weight: .bold))
+                .foregroundColor(.black)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(status.color)
+
+            Text(campaign?.name ?? "Campaign")
+                .font(.pixelifyTitle)
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+
+            Text("MAY 4 – MAY 17, 2026")
+                .font(.pixelifySmall)
+                .foregroundColor(.gray)
+
+            switch status {
+            case .upcoming:
+                Text("D-\(daysUntilStart) — Starts in \(daysUntilStart) day\(daysUntilStart == 1 ? "" : "s")")
+                    .font(.pixelifyBody)
+                    .foregroundColor(.cyan)
+            case .active:
+                Text("\(daysRemaining) day\(daysRemaining == 1 ? "" : "s") remaining")
+                    .font(.pixelifyBody)
+                    .foregroundColor(.green)
+            case .ended:
+                Text("Challenge complete")
+                    .font(.pixelifyBody)
+                    .foregroundColor(.gray)
+            }
+
+            if participantCount > 0 {
+                Text("\(participantCount) kenshi\(participantCount == 1 ? "" : "s") enrolled")
+                    .font(.pixelify(size: 10))
+                    .foregroundColor(.gray)
+            }
+        }
+        .padding(.bottom, 24)
     }
+
+    // MARK: - Join Section
+
+    private var joinSection: some View {
+        Group {
+            if isParticipant {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                    Text("YOU'RE IN!")
+                        .font(.pixelifyBodyBold)
+                }
+                .foregroundColor(.green)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(Color.green.opacity(0.12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 0)
+                        .stroke(Color.green, lineWidth: 2)
+                )
+            } else {
+                Button(action: { Task { await joinCampaign() } }) {
+                    if isJoining {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .black))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(status == .active ? Color.green : Color.cyan)
+                    } else {
+                        Text(status == .active ? "JOIN THE CHALLENGE" : "SIGN UP EARLY")
+                            .font(.pixelifyBodyBold)
+                            .foregroundColor(.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(status == .active ? Color.green : Color.cyan)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 0)
+                                    .stroke(Color.white, lineWidth: 2)
+                            )
+                    }
+                }
+                .disabled(isJoining)
+            }
+        }
+    }
+
+    // MARK: - Leaderboard Section
+
+    private var leaderboardSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Section header
+            HStack {
+                Text(campaignStarted ? "LEADERBOARD" : "PARTICIPANTS")
+                    .font(.pixelify(size: 10, weight: .bold))
+                    .foregroundColor(.gray)
+                Spacer()
+                if !campaignStarted {
+                    Text("Rankings open on May 4")
+                        .font(.pixelify(size: 9))
+                        .foregroundColor(.gray)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 10)
+
+            if campaignStarted {
+                // Column headers
+                HStack(spacing: 0) {
+                    Text("#")
+                        .frame(width: 32, alignment: .center)
+                    Text("NAME")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("SWINGS")
+                        .frame(width: 58, alignment: .trailing)
+                    Text("STREAK")
+                        .frame(width: 52, alignment: .trailing)
+                    Text("SCORE")
+                        .frame(width: 58, alignment: .trailing)
+                }
+                .font(.pixelify(size: 9, weight: .bold))
+                .foregroundColor(.gray)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.04))
+            }
+
+            if entries.isEmpty {
+                Text(campaignStarted ? "No participants yet." : "No one has signed up yet. Be the first!")
+                    .font(.pixelify(size: 10))
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(24)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            } else if campaignStarted {
+                ForEach(entries) { entry in
+                    activeLeaderboardRow(entry: entry)
+                }
+            } else {
+                ForEach(entries) { entry in
+                    participantRow(entry: entry)
+                }
+            }
+        }
+    }
+
+    // MARK: - Active leaderboard row (with scores)
+
+    private func activeLeaderboardRow(entry: CampaignLeaderboardEntry) -> some View {
+        HStack(spacing: 0) {
+            Text("#\(entry.rank ?? 0)")
+                .font(.pixelifyBodyBold)
+                .foregroundColor(rankColor(entry.rank ?? 0))
+                .frame(width: 32, alignment: .center)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.displayName)
+                    .font(.pixelifyBody)
+                    .foregroundColor(entry.isMe ? .yellow : .white)
+                    .lineLimit(1)
+                if entry.isMe {
+                    Text("YOU")
+                        .font(.pixelify(size: 7, weight: .bold))
+                        .foregroundColor(.yellow.opacity(0.7))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text("\(entry.totalSwings)")
+                .font(.pixelifySmall)
+                .foregroundColor(.white.opacity(0.8))
+                .frame(width: 58, alignment: .trailing)
+
+            Text("\(entry.maxStreak)d")
+                .font(.pixelifySmall)
+                .foregroundColor(.orange.opacity(0.9))
+                .frame(width: 52, alignment: .trailing)
+
+            Text("\(entry.score)")
+                .font(.pixelify(size: 11, weight: .bold))
+                .foregroundColor(entry.isMe ? .yellow : .green)
+                .frame(width: 58, alignment: .trailing)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(entry.isMe ? Color.yellow.opacity(0.06) : Color.white.opacity(0.02))
+        .overlay(
+            Rectangle()
+                .fill(Color.white.opacity(0.06))
+                .frame(height: 1),
+            alignment: .bottom
+        )
+    }
+
+    // MARK: - Pre-start participant row (no scores, nakama button)
+
+    private func participantRow(entry: CampaignLeaderboardEntry) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.displayName)
+                    .font(.pixelifyBody)
+                    .foregroundColor(entry.isMe ? .yellow : .white)
+                    .lineLimit(1)
+                if entry.isMe {
+                    Text("YOU")
+                        .font(.pixelify(size: 7, weight: .bold))
+                        .foregroundColor(.yellow.opacity(0.7))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if !entry.isMe {
+                nakamaButton(entry: entry)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(entry.isMe ? Color.yellow.opacity(0.06) : Color.white.opacity(0.02))
+        .overlay(
+            Rectangle()
+                .fill(Color.white.opacity(0.06))
+                .frame(height: 1),
+            alignment: .bottom
+        )
+    }
+
+    @ViewBuilder
+    private func nakamaButton(entry: CampaignLeaderboardEntry) -> some View {
+        let alreadySent = pendingRequestIds.contains(entry.userId)
+        if entry.isFriend {
+            Text("NAKAMA")
+                .font(.pixelify(size: 9, weight: .bold))
+                .foregroundColor(.green)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 0)
+                        .stroke(Color.green.opacity(0.5), lineWidth: 1)
+                )
+        } else if entry.isPending || alreadySent {
+            Text("PENDING")
+                .font(.pixelify(size: 9, weight: .bold))
+                .foregroundColor(.gray)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 0)
+                        .stroke(Color.gray.opacity(0.4), lineWidth: 1)
+                )
+        } else {
+            Button(action: { Task { await sendNakamaRequest(to: entry.userId) } }) {
+                Text("+ NAKAMA")
+                    .font(.pixelify(size: 9, weight: .bold))
+                    .foregroundColor(.yellow)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 0)
+                            .stroke(Color.yellow.opacity(0.6), lineWidth: 1)
+                    )
+            }
+        }
+    }
+
+    private func rankColor(_ rank: Int) -> Color {
+        switch rank {
+        case 1: return .yellow
+        case 2: return Color(white: 0.75)
+        case 3: return Color(red: 0.8, green: 0.5, blue: 0.2)
+        default: return .white.opacity(0.5)
+        }
+    }
+
+    // MARK: - Actions
+
+    private func loadLeaderboard() async {
+        do {
+            let data = try await APIService.shared.getCampaignLeaderboard()
+            await MainActor.run { leaderboardData = data }
+        } catch {
+            print("Failed to load campaign leaderboard: \(error)")
+        }
+        await MainActor.run { isLoading = false }
+    }
+
+    private func joinCampaign() async {
+        guard let campaignId = campaign?.id else { return }
+        await MainActor.run { isJoining = true }
+        do {
+            try await APIService.shared.joinCampaign(campaignId: campaignId)
+            await loadLeaderboard()
+        } catch {
+            print("Failed to join campaign: \(error)")
+        }
+        await MainActor.run { isJoining = false }
+    }
+
+    private func sendNakamaRequest(to userId: String) async {
+        await MainActor.run { pendingRequestIds.insert(userId) }
+        do {
+            _ = try await APIService.shared.createFriendRequest(toUserId: userId)
+        } catch {
+            await MainActor.run { pendingRequestIds.remove(userId) }
+            print("Failed to send nakama request: \(error)")
+        }
+    }
+}
+
+// MARK: - Rules Sheet
+
+private struct CampaignRulesSheet: View {
+    let campaign: Campaign?
+    @Environment(\.dismiss) var dismiss
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Header
-                    HStack {
-                        Button(action: { dismiss() }) {
-                            Text("← BACK")
-                                .font(.pixelifyButton)
-                                .foregroundColor(.white)
-                        }
-                        Spacer()
-                        Text("CAMPAIGN")
-                            .font(.pixelifyHeadline)
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button(action: { dismiss() }) {
+                        Text("CLOSE")
+                            .font(.pixelifyButton)
                             .foregroundColor(.white)
-                        Spacer()
-                            .frame(width: 80)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .padding(.bottom, 24)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 16)
 
-                    // Icon + Status
-                    VStack(spacing: 12) {
-                        Image("toriiGate")
-                            .interpolation(.none)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 64, height: 64)
-
-                        // Status badge
-                        Text(status.label)
-                            .font(.pixelify(size: 10, weight: .bold))
-                            .foregroundColor(.black)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 4)
-                            .background(status.color)
-
-                        Text(campaignName)
-                            .font(.pixelifyTitle)
-                            .foregroundColor(.white)
-                            .multilineTextAlignment(.center)
-
-                        // Date range
-                        Text("MAY 4 – MAY 17, 2026")
-                            .font(.pixelifySmall)
-                            .foregroundColor(.gray)
-
-                        // Countdown
-                        switch status {
-                        case .upcoming:
-                            Text("Starts in \(daysUntilStart) days")
-                                .font(.pixelifyBody)
-                                .foregroundColor(.cyan)
-                        case .active:
-                            Text("\(daysRemaining) days remaining")
-                                .font(.pixelifyBody)
-                                .foregroundColor(.green)
-                        case .ended:
-                            Text("Challenge complete")
-                                .font(.pixelifyBody)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        // Description
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("FROM THE CREATOR")
+                                .font(.pixelify(size: 10, weight: .bold))
                                 .foregroundColor(.gray)
-                        }
-                    }
-                    .padding(.bottom, 28)
-
-                    Divider()
-                        .background(Color.white.opacity(0.15))
-                        .padding(.horizontal, 20)
-
-                    // Description
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("FROM THE CREATOR")
-                            .font(.pixelify(size: 10, weight: .bold))
-                            .foregroundColor(.gray)
-
-                        Text(description)
-                            .font(.pixelifyBody)
-                            .foregroundColor(.white)
-                            .lineSpacing(4)
-                    }
-                    .padding(20)
-
-                    Divider()
-                        .background(Color.white.opacity(0.15))
-                        .padding(.horizontal, 20)
-
-                    // Rules
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("RULES")
-                            .font(.pixelify(size: 10, weight: .bold))
-                            .foregroundColor(.gray)
-
-                        Text(rules)
-                            .font(.pixelifyBody)
-                            .foregroundColor(.white)
-                            .lineSpacing(4)
-
-                        // Score formula breakdown
-                        HStack(spacing: 8) {
-                            FormulaBox(label: "SWINGS", color: .green)
-                            Text("+")
-                                .font(.pixelifyBodyBold)
+                            Text(campaign?.description ?? "")
+                                .font(.pixelifyBody)
                                 .foregroundColor(.white)
-                            FormulaBox(label: "MAX STREAK × 50", color: .orange)
-                            Text("= SCORE")
-                                .font(.pixelifyBodyBold)
+                                .lineSpacing(4)
+                        }
+
+                        Divider().background(Color.white.opacity(0.15))
+
+                        // Rules
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("RULES & SCORING")
+                                .font(.pixelify(size: 10, weight: .bold))
+                                .foregroundColor(.gray)
+                            Text(campaign?.rules ?? "")
+                                .font(.pixelifyBody)
                                 .foregroundColor(.white)
-                        }
-                        .padding(.top, 4)
+                                .lineSpacing(4)
 
-                        // Example
-                        Text("e.g. 768 swings + (7 day streak × 50) = 1,118 pts")
-                            .font(.pixelify(size: 10))
-                            .foregroundColor(.gray)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.white.opacity(0.05))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 0)
-                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                            )
-                    }
-                    .padding(20)
-
-                    Divider()
-                        .background(Color.white.opacity(0.15))
-                        .padding(.horizontal, 20)
-
-                    // Prize
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("PRIZE")
-                            .font(.pixelify(size: 10, weight: .bold))
-                            .foregroundColor(.gray)
-
-                        Text(prize)
-                            .font(.pixelifyBody)
-                            .foregroundColor(.yellow)
-
-                        // Kikentai brand link
-                        Link(destination: prizeURL) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "arrow.up.right.square")
-                                    .font(.system(size: 12))
-                                Text("Check out Kikentai")
-                                    .font(.pixelifySmall)
+                            HStack(spacing: 8) {
+                                FormulaBox(label: "SWINGS", color: .green)
+                                Text("+")
+                                    .font(.pixelifyBodyBold)
+                                    .foregroundColor(.white)
+                                FormulaBox(label: "MAX STREAK × 50", color: .orange)
+                                Text("= SCORE")
+                                    .font(.pixelifyBodyBold)
+                                    .foregroundColor(.white)
                             }
-                            .foregroundColor(.cyan)
+                            .padding(.top, 4)
+
+                            Text("e.g. 768 swings + (7-day streak × 50) = 1,118 pts")
+                                .font(.pixelify(size: 10))
+                                .foregroundColor(.gray)
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.white.opacity(0.05))
+                                .overlay(RoundedRectangle(cornerRadius: 0).stroke(Color.white.opacity(0.1), lineWidth: 1))
                         }
 
-                        // Prize image placeholder
-                        RoundedRectangle(cornerRadius: 0)
-                            .fill(Color.gray.opacity(0.15))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 120)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 0)
-                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                            )
-                            .overlay(
-                                Text("PRIZE IMAGE\nCOMING SOON")
-                                    .font(.pixelify(size: 10))
-                                    .foregroundColor(.gray)
-                                    .multilineTextAlignment(.center)
-                            )
-                    }
-                    .padding(20)
+                        Divider().background(Color.white.opacity(0.15))
 
-                    Divider()
-                        .background(Color.white.opacity(0.15))
-                        .padding(.horizontal, 20)
+                        // Prize
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("PRIZE")
+                                .font(.pixelify(size: 10, weight: .bold))
+                                .foregroundColor(.gray)
+                            Text(campaign?.prize ?? "")
+                                .font(.pixelifyBody)
+                                .foregroundColor(.yellow)
+                                .lineSpacing(4)
 
-                    // Enter / Leaderboard section
-                    VStack(spacing: 16) {
-                        if campaignEnabled && (status == .active || status == .upcoming) {
-                            if hasJoined {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 12, weight: .bold))
-                                    Text("YOU'RE IN!")
-                                        .font(.pixelifyBodyBold)
-                                }
-                                .foregroundColor(.green)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(Color.green.opacity(0.15))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 0)
-                                        .stroke(Color.green, lineWidth: 2)
-                                )
-                            } else {
-                                Button(action: { hasJoined = true }) {
-                                    Text(status == .active ? "JOIN THE CHALLENGE" : "SIGN UP EARLY")
-                                        .font(.pixelifyBodyBold)
-                                        .foregroundColor(.black)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 16)
-                                        .background(status == .active ? Color.green : Color.cyan)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 0)
-                                                .stroke(Color.white, lineWidth: 2)
-                                        )
-                                }
-                            }
-                        }
-
-                        if campaignEnabled && status == .active {
-                            // Leaderboard placeholder
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("LEADERBOARD")
-                                    .font(.pixelify(size: 10, weight: .bold))
-                                    .foregroundColor(.gray)
-
-                                if hasJoined {
-                                    // Sample leaderboard entries when joined
-                                    ForEach(Array([
-                                        ("Klayon01", 1240),
-                                        ("reion", 980),
-                                        ("kenshi01", 720)
-                                    ].enumerated()), id: \.offset) { index, entry in
-                                        HStack(spacing: 12) {
-                                            Text("#\(index + 1)")
-                                                .font(.pixelifyBodyBold)
-                                                .foregroundColor(index == 0 ? .yellow : index == 1 ? Color.gray.opacity(0.8) : .orange)
-                                                .frame(width: 32)
-                                            Text(entry.0)
-                                                .font(.pixelifyBody)
-                                                .foregroundColor(.white)
-                                            Spacer()
-                                            Text("\(entry.1) pts")
-                                                .font(.pixelifyButton)
-                                                .foregroundColor(.green)
-                                        }
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 12)
-                                        .background(Color.gray.opacity(0.1))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 0)
-                                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                                        )
+                            if let urlString = campaign?.prizeUrl, let url = URL(string: urlString) {
+                                Link(destination: url) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "arrow.up.right.square")
+                                            .font(.system(size: 12))
+                                        Text("Check out Kikentai")
+                                            .font(.pixelifySmall)
                                     }
-                                } else {
-                                    ForEach(1...3, id: \.self) { rank in
-                                        HStack(spacing: 12) {
-                                            Text("#\(rank)")
-                                                .font(.pixelifyBodyBold)
-                                                .foregroundColor(rank == 1 ? .yellow : rank == 2 ? Color.gray.opacity(0.8) : .orange)
-                                                .frame(width: 32)
-                                            RoundedRectangle(cornerRadius: 0)
-                                                .fill(Color.gray.opacity(0.3))
-                                                .frame(height: 16)
-                                            Text("—")
-                                                .font(.pixelifyBody)
-                                                .foregroundColor(.gray)
-                                        }
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 12)
-                                        .background(Color.gray.opacity(0.1))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 0)
-                                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                                        )
-                                    }
-                                    Text("Join to see the full leaderboard")
-                                        .font(.pixelifySmall)
-                                        .foregroundColor(.gray)
-                                        .frame(maxWidth: .infinity, alignment: .center)
+                                    .foregroundColor(.cyan)
                                 }
                             }
                         }
@@ -344,12 +560,8 @@ private struct FormulaBox: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(color.opacity(0.15))
-            .overlay(
-                RoundedRectangle(cornerRadius: 0)
-                    .stroke(color.opacity(0.5), lineWidth: 1)
-            )
+            .overlay(RoundedRectangle(cornerRadius: 0).stroke(color.opacity(0.5), lineWidth: 1))
     }
 }
 
-// Keep old name working
 typealias CampaignPlaceholderView = CampaignView

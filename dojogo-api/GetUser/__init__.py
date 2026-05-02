@@ -20,7 +20,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         # Get user data
         user = execute_query(
-            "SELECT id, user_number, name, nickname, nickname_last_changed, kendo_rank, kendo_experience_years, kendo_experience_months, home_dojo, email, streak, total_count, created_at, last_session_date FROM users WHERE id = %s",
+            "SELECT id, user_number, name, nickname, nickname_last_changed, kendo_rank, kendo_experience_years, kendo_experience_months, home_dojo, email, streak, total_count, created_at, last_session_date, is_public FROM users WHERE id = %s",
             (user_id,),
             fetch=True
         )
@@ -50,7 +50,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             "streak": user_data.get("streak"),
             "totalCount": user_data.get("total_count"),
             "createdAt": datetime_to_timestamp(user_data.get("created_at")),
-            "lastSessionDate": datetime_to_timestamp(user_data.get("last_session_date"))
+            "lastSessionDate": datetime_to_timestamp(user_data.get("last_session_date")),
+            "isPublic": bool(user_data.get("is_public", True))
         }
 
         return func.HttpResponse(

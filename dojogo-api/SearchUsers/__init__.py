@@ -27,6 +27,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         user_id = req.user_id
 
         # Search by player number if query starts with # or is purely numeric
+        # User# search bypasses privacy (hard to guess, intentional lookup)
         numeric_query = query.lstrip('#')
         if numeric_query.isdigit():
             results = execute_query(
@@ -36,7 +37,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             )
         else:
             results = execute_query(
-                "SELECT id, nickname, user_number, kendo_rank FROM users WHERE nickname LIKE %s AND id != %s LIMIT %s",
+                "SELECT id, nickname, user_number, kendo_rank FROM users WHERE nickname LIKE %s AND id != %s AND is_public = TRUE LIMIT %s",
                 (f"{query}%", user_id, limit),
                 fetch=True
             )

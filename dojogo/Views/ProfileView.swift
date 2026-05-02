@@ -8,6 +8,7 @@ struct ProfileView: View {
     @State private var experienceYears: Int = 0
     @State private var experienceMonths: Int = 0
     @State private var homeDojo: String = ""
+    @State private var isPublic: Bool = true
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var successMessage: String?
@@ -616,6 +617,40 @@ struct ProfileView: View {
                             }
                             .padding(.horizontal, 20)
 
+                            // Privacy toggle
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("PRIVACY")
+                                    .font(.pixelify(size: 10, weight: .bold))
+                                    .foregroundColor(.gray)
+                                    .padding(.horizontal, 20)
+
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Public Profile")
+                                            .font(.pixelifyBody)
+                                            .foregroundColor(.white)
+                                        Text(isPublic ? "Visible in dojo & nickname search" : "Hidden from search (leaderboard shows ???)")
+                                            .font(.pixelify(size: 10))
+                                            .foregroundColor(.gray)
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: $isPublic)
+                                        .labelsHidden()
+                                        .tint(.yellow)
+                                        .onChange(of: isPublic) { newValue in
+                                            savePrivacy(newValue)
+                                        }
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                                .background(Color.gray.opacity(0.1))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 0)
+                                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                )
+                                .padding(.horizontal, 20)
+                            }
+
                             // Messages
                             if let error = errorMessage {
                                 Text(error)
@@ -752,6 +787,7 @@ struct ProfileView: View {
         experienceYears = user.kendoExperienceYears
         experienceMonths = user.kendoExperienceMonths
         homeDojo = user.homeDojo ?? ""
+        isPublic = user.isPublic
     }
 
     // MARK: - Individual Save Functions
@@ -913,6 +949,29 @@ struct ProfileView: View {
                 await MainActor.run {
                     isLoading = false
                     errorMessage = "Failed to update home dojo: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+    private func savePrivacy(_ newValue: Bool) {
+        Task {
+            do {
+                let updatedUser = try await APIService.shared.updateProfile(
+                    nickname: nil,
+                    kendoRank: nil,
+                    experienceYears: nil,
+                    experienceMonths: nil,
+                    isPublic: newValue
+                )
+                await MainActor.run {
+                    authViewModel.currentUser = updatedUser
+                    LocalStorageService.shared.saveUser(updatedUser)
+                }
+            } catch {
+                await MainActor.run {
+                    // Revert toggle on failure
+                    isPublic = !newValue
+                    errorMessage = "Failed to update privacy setting"
                 }
             }
         }

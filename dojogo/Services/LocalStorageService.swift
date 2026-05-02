@@ -11,8 +11,12 @@ class LocalStorageService: ObservableObject {
     private let dojoNamesCacheTimeKey = "dojo_names_cache_time"
     private let stageSwingsKeyPrefix = "stage_swings_"
     private let selectedAvatarKey = "selected_avatar"
+    private let campaignSeenKeyPrefix = "campaign_seen_"
+    private let sessionIntroSeenKey = "session_intro_seen"
+    private let lastSensorModeKey = "last_sensor_mode"
+    private let lastSeenAnnouncementIdKey = "last_seen_announcement_id"
 
-    static let availableAvatars: [String] = ["kendoka","kendoka2", "kendoka3","kendoka4","Profile_men"]
+    static let availableAvatars: [String] = ["kendoka","kendoka2","kendoka3","kendoka4","kendoka5","kendoka6","kendoka7","kendoka8","kendoka9","kendoka10","Profile_men"]
 
     private init() {}
 
@@ -245,6 +249,48 @@ class LocalStorageService: ObservableObject {
 
     func getSelectedAvatar() -> String {
         return userDefaults.string(forKey: selectedAvatarKey) ?? LocalStorageService.availableAvatars[0]
+    }
+
+    // MARK: - Session Intro
+
+    func hasSeenSessionIntro() -> Bool {
+        return userDefaults.bool(forKey: sessionIntroSeenKey)
+    }
+
+    func setSessionIntroSeen() {
+        userDefaults.set(true, forKey: sessionIntroSeenKey)
+    }
+
+    // MARK: - Announcements
+
+    func getLastSeenAnnouncementId() -> Int {
+        return userDefaults.integer(forKey: lastSeenAnnouncementIdKey)
+    }
+
+    func saveLastSeenAnnouncementId(_ id: Int) {
+        userDefaults.set(id, forKey: lastSeenAnnouncementIdKey)
+    }
+
+    // MARK: - Last Sensor Mode
+
+    func getLastSensorMode() -> SensorMode {
+        guard let raw = userDefaults.string(forKey: lastSensorModeKey),
+              let mode = SensorMode(rawValue: raw) else { return .phone }
+        return mode
+    }
+
+    func saveLastSensorMode(_ mode: SensorMode) {
+        userDefaults.set(mode.rawValue, forKey: lastSensorModeKey)
+    }
+
+    // MARK: - Campaign Seen
+
+    func hasCampaignBeenSeen(for userId: String) -> Bool {
+        return userDefaults.bool(forKey: campaignSeenKeyPrefix + userId)
+    }
+
+    func markCampaignAsSeen(for userId: String) {
+        userDefaults.set(true, forKey: campaignSeenKeyPrefix + userId)
     }
 
     // MARK: - Last Session

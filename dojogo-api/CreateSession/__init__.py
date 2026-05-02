@@ -33,6 +33,9 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         duration = req_body.get('duration')
         # Session mode: "guided" (default) or "free"
         mode = req_body.get('mode', 'guided')
+        # Sensor mode: "phone" (default), "mount", or "other"
+        sensor_mode_raw = req_body.get('sensorMode', 'phone')
+        sensor_mode = sensor_mode_raw if sensor_mode_raw in ('mount', 'phone', 'other') else 'phone'
 
         # Optional stats fields (populated by newer clients)
         tempo = req_body.get('tempo')
@@ -67,18 +70,18 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         # Create session record with rank/experience snapshot + stats
         try:
             execute_query(
-                """INSERT INTO sessions (id, user_id, swing_count, duration, mode,
+                """INSERT INTO sessions (id, user_id, swing_count, duration, mode, sensor_mode,
                    kendo_rank, experience_years, experience_months,
                    tempo, avg_speed, max_speed, max_power,
                    avg_reaction_ms, avg_strike_time_ms, stage_id)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (session_id, user_id, swing_count, duration, mode,
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (session_id, user_id, swing_count, duration, mode, sensor_mode,
                  kendo_rank, experience_years, experience_months,
                  tempo, avg_speed, max_speed, max_power,
                  avg_reaction_ms, avg_strike_time_ms, stage_id)
             )
         except Exception:
-            # Fallback if stats columns don't exist yet (pre-migration 008)
+            # Fallback if stats columns don't exist yet (pre-migration 008/010)
             try:
                 execute_query(
                     """INSERT INTO sessions (id, user_id, swing_count, duration, mode, kendo_rank, experience_years, experience_months)

@@ -32,7 +32,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             sessions.append({
                 "id": row.get("id"),
                 "swingCount": row.get("swing_count"),
-                "duration": row.get("duration"),
+                "duration": row["duration"].total_seconds() if hasattr(row.get("duration"), "total_seconds") else (float(row["duration"]) if row.get("duration") is not None else 0.0),
                 "mode": row.get("mode"),
                 "createdAt": datetime_to_timestamp(row.get("created_at")),
                 "tempo": float(row["tempo"]) if row.get("tempo") is not None else None,

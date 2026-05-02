@@ -5,6 +5,7 @@ struct ActionView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @Environment(\.dismiss) var dismiss
     @State private var showReport = false
+    @State private var countdownDone = false
 
     private func isPreSessionPhase(_ phase: CueManager.Phase) -> Bool {
         switch phase {
@@ -103,8 +104,8 @@ struct ActionView: View {
 
                     Spacer()
 
-                    // "KAMAETO!" label during countdown
-                    if let cueManager = gameViewModel.cueManager, isPreSessionPhase(cueManager.phase) {
+                    // "KAMAETO!" label — only before the first cue fires
+                    if let cueManager = gameViewModel.cueManager, isPreSessionPhase(cueManager.phase), !countdownDone {
                         Text("KAMAETO!")
                             .font(.pixelify(size: 48, weight: .bold))
                             .foregroundColor(.black.opacity(0.7))
@@ -139,6 +140,11 @@ struct ActionView: View {
         }
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
+        }
+        .onChange(of: gameViewModel.cueManager?.phase) { phase in
+            if let phase = phase, !isPreSessionPhase(phase) {
+                countdownDone = true
+            }
         }
         .onChange(of: gameViewModel.isSessionActive) { isActive in
             if !isActive && gameViewModel.currentSession != nil {

@@ -151,6 +151,7 @@ class APIService: ObservableObject {
             let totalCount: Int
             let createdAt: Int?
             let lastSessionDate: Int?
+            let isPublic: Bool?
         }
 
         let apiResponse = try configuredDecoder().decode(GetUserResponse.self, from: data)
@@ -173,6 +174,7 @@ class APIService: ObservableObject {
         if let lastSessionTimestamp = userResponse.lastSessionDate {
             user.lastSessionDate = Date(timeIntervalSince1970: TimeInterval(lastSessionTimestamp))
         }
+        user.isPublic = userResponse.isPublic ?? true
 
         return user
     }
@@ -218,7 +220,8 @@ class APIService: ObservableObject {
             "id": session.id.uuidString,
             "swingCount": session.swingCount,
             "duration": session.duration,
-            "mode": session.mode.rawValue
+            "mode": session.mode.rawValue,
+            "sensorMode": session.sensorMode.rawValue
         ]
         if let stageId = session.stageId {
             body["stageId"] = stageId
@@ -519,7 +522,7 @@ class APIService: ObservableObject {
         return user
     }
 
-    func updateProfile(nickname: String?, kendoRank: KendoRank?, experienceYears: Int?, experienceMonths: Int?, homeDojo: String? = nil) async throws -> User {
+    func updateProfile(nickname: String?, kendoRank: KendoRank?, experienceYears: Int?, experienceMonths: Int?, homeDojo: String? = nil, isPublic: Bool? = nil) async throws -> User {
         let url = URL(string: "\(baseURL)/UpdateProfile")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -542,6 +545,9 @@ class APIService: ObservableObject {
         }
         if let homeDojo = homeDojo {
             body["homeDojo"] = homeDojo
+        }
+        if let isPublic = isPublic {
+            body["isPublic"] = isPublic
         }
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -588,6 +594,7 @@ class APIService: ObservableObject {
             let streak: Int
             let totalCount: Int
             let createdAt: Int?
+            let isPublic: Bool?
         }
 
         let apiResponse = try configuredDecoder().decode(UpdateProfileResponse.self, from: data)
@@ -612,8 +619,26 @@ class APIService: ObservableObject {
         user.streak = userResponse.streak
         user.totalCount = userResponse.totalCount
         user.createdAt = userResponse.createdAt != nil ? Date(timeIntervalSince1970: TimeInterval(userResponse.createdAt!)) : Date()
+        user.isPublic = userResponse.isPublic ?? true
 
         return user
+    }
+
+    // MARK: - Announcements
+
+    func getAnnouncements() async throws -> [Announcement] {
+        let url = URL(string: "\(baseURL)/GetAnnouncements")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+
+        struct AnnouncementsResponse: Codable { let announcements: [Announcement] }
+        let decoder = configuredDecoder()
+        return try decoder.decode(AnnouncementsResponse.self, from: data).announcements
     }
 
     // MARK: - Friends / Nakama
@@ -632,6 +657,22 @@ class APIService: ObservableObject {
 
         struct SearchResponse: Codable { let results: [UserSummary] }
         return try configuredDecoder().decode(SearchResponse.self, from: data).results
+    }
+
+    func searchByDojo(dojo: String) async throws -> [UserSummary] {
+        let encoded = dojo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? dojo
+        let url = URL(string: "\(baseURL)/SearchByDojo?dojo=\(encoded)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        try await addAuthHeaders(to: &request)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+
+        struct DojoSearchResponse: Codable { let results: [UserSummary] }
+        return try configuredDecoder().decode(DojoSearchResponse.self, from: data).results
     }
 
     func createFriendRequest(toUserId: String) async throws -> Int {
@@ -732,6 +773,54 @@ class APIService: ObservableObject {
         }
 
         return try configuredDecoder().decode(LeaderboardV2Response.self, from: data)
+    }
+
+    // MARK: - Campaign
+
+    func getCampaignLeaderboard(campaignId: Int? = nil) async throws -> CampaignLeaderboardResponse {
+        var urlString = "\(baseURL)/GetCampaignLeaderboard"
+        if let id = campaignId {
+            urlString += "?campaignId=\(id)"
+        }
+        let url = URL(string: urlString)!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        try await addAuthHeaders(to: &request)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+
+        let decoder = configuredDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            // Parse ISO date strings like "2026-05-04"
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            formatter.timeZone = TimeZone(identifier: "UTC")
+            if let date = formatter.date(from: string) { return date }
+            // Fallback to full ISO8601
+            let iso = ISO8601DateFormatter()
+            if let date = iso.date(from: string) { return date }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot parse date: \(string)")
+        }
+        return try decoder.decode(CampaignLeaderboardResponse.self, from: data)
+    }
+
+    func joinCampaign(campaignId: Int) async throws {
+        let url = URL(string: "\(baseURL)/JoinCampaign")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        try await addAuthHeaders(to: &request)
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["campaignId": campaignId])
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
     }
 
     // MARK: - Dojo Names (for autocomplete)

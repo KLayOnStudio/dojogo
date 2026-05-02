@@ -5,6 +5,36 @@ enum SessionMode: String, Codable {
     case free = "free"
 }
 
+enum SensorMode: String, Codable, CaseIterable {
+    case mount = "mount"   // Phone physically mounted on shinai
+    case phone = "phone"   // Holding phone alone, swinging shinai separately
+    case other = "other"   // Something creative
+
+    var displayName: String {
+        switch self {
+        case .mount: return "On Shinai"
+        case .phone: return "Phone Only"
+        case .other: return "Other"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .mount: return "Phone mounted on shinai"
+        case .phone: return "Phone only, no shinai — shadow swinging"
+        case .other: return "Something creative"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .mount: return "iphone.and.arrow.forward"
+        case .phone: return "iphone"
+        case .other: return "questionmark.circle"
+        }
+    }
+}
+
 struct Session: Codable, Identifiable {
     let id: UUID
     let userId: String
@@ -15,8 +45,9 @@ struct Session: Codable, Identifiable {
     let endTime: Date
     let mode: SessionMode
     let stageId: Int?
+    let sensorMode: SensorMode
 
-    init(userId: String, swingCount: Int, startTime: Date, endTime: Date, mode: SessionMode = .guided, stageId: Int? = nil) {
+    init(userId: String, swingCount: Int, startTime: Date, endTime: Date, mode: SessionMode = .guided, stageId: Int? = nil, sensorMode: SensorMode = .phone) {
         self.id = UUID()
         self.userId = userId
         self.date = startTime
@@ -26,10 +57,11 @@ struct Session: Codable, Identifiable {
         self.endTime = endTime
         self.mode = mode
         self.stageId = stageId
+        self.sensorMode = sensorMode
     }
 
     /// Init for server-fetched sessions (known id, date + duration only)
-    init(id: UUID, userId: String, date: Date, swingCount: Int, duration: TimeInterval, mode: SessionMode = .guided, stageId: Int? = nil) {
+    init(id: UUID, userId: String, date: Date, swingCount: Int, duration: TimeInterval, mode: SessionMode = .guided, stageId: Int? = nil, sensorMode: SensorMode = .phone) {
         self.id = id
         self.userId = userId
         self.date = date
@@ -39,6 +71,7 @@ struct Session: Codable, Identifiable {
         self.endTime = date.addingTimeInterval(duration)
         self.mode = mode
         self.stageId = stageId
+        self.sensorMode = sensorMode
     }
 
     init(from decoder: Decoder) throws {
@@ -58,6 +91,7 @@ struct Session: Codable, Identifiable {
         endTime = try container.decode(Date.self, forKey: .endTime)
         mode = (try? container.decode(SessionMode.self, forKey: .mode)) ?? .guided
         stageId = try container.decodeIfPresent(Int.self, forKey: .stageId)
+        sensorMode = (try? container.decode(SensorMode.self, forKey: .sensorMode)) ?? .phone
     }
 
     private enum LegacyCodingKeys: String, CodingKey {
@@ -65,7 +99,7 @@ struct Session: Codable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, userId, date, swingCount, duration, startTime, endTime, mode, stageId
+        case id, userId, date, swingCount, duration, startTime, endTime, mode, stageId, sensorMode
     }
 
     func encode(to encoder: Encoder) throws {
@@ -79,5 +113,6 @@ struct Session: Codable, Identifiable {
         try container.encode(endTime, forKey: .endTime)
         try container.encode(mode, forKey: .mode)
         try container.encodeIfPresent(stageId, forKey: .stageId)
+        try container.encode(sensorMode, forKey: .sensorMode)
     }
 }

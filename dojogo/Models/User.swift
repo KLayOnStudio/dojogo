@@ -59,6 +59,7 @@ struct User: Codable, Identifiable {
     var totalCount: Int
     var createdAt: Date
     var lastSessionDate: Date?
+    var isPublic: Bool
 
     // Custom decoder to handle missing fields
     init(from decoder: Decoder) throws {
@@ -77,6 +78,7 @@ struct User: Codable, Identifiable {
         totalCount = try container.decode(Int.self, forKey: .totalCount)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         lastSessionDate = try container.decodeIfPresent(Date.self, forKey: .lastSessionDate)
+        isPublic = try container.decodeIfPresent(Bool.self, forKey: .isPublic) ?? true
     }
 
     // Display name for UI (nickname if set, otherwise name)
@@ -123,5 +125,6 @@ struct User: Codable, Identifiable {
         self.totalCount = 0
         self.createdAt = Date()
         self.lastSessionDate = nil
+        self.isPublic = true
     }
 }
