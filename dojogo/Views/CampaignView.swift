@@ -34,12 +34,18 @@ struct CampaignView: View {
 
     private var daysUntilStart: Int {
         guard let c = campaign else { return 0 }
-        return max(Calendar.current.dateComponents([.day], from: Date(), to: c.startDate).day ?? 0, 0)
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let startDay = cal.startOfDay(for: c.startDate)
+        return max(cal.dateComponents([.day], from: today, to: startDay).day ?? 0, 0)
     }
 
     private var daysRemaining: Int {
         guard let c = campaign else { return 0 }
-        return max(Calendar.current.dateComponents([.day], from: Date(), to: c.endDate).day ?? 0, 0)
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let endDay = cal.startOfDay(for: c.endDate)
+        return max(cal.dateComponents([.day], from: today, to: endDay).day ?? 0, 0)
     }
 
     enum CampaignStatus {
@@ -209,7 +215,7 @@ struct CampaignView: View {
                             .padding(.vertical, 16)
                             .background(status == .active ? Color.green : Color.cyan)
                     } else {
-                        Text(status == .active ? "JOIN THE CHALLENGE" : "SIGN UP EARLY")
+                        Text("SIGN UP")
                             .font(.pixelifyBodyBold)
                             .foregroundColor(.black)
                             .frame(maxWidth: .infinity)
@@ -524,6 +530,34 @@ private struct CampaignRulesSheet: View {
                             Text("PRIZE")
                                 .font(.pixelify(size: 10, weight: .bold))
                                 .foregroundColor(.gray)
+
+                            if let imageUrlString = campaign?.prizeImageUrl,
+                               let imageUrl = URL(string: imageUrlString) {
+                                AsyncImage(url: imageUrl) { phase in
+                                    switch phase {
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(maxWidth: .infinity)
+                                    case .failure:
+                                        Rectangle()
+                                            .fill(Color.white.opacity(0.05))
+                                            .frame(maxWidth: .infinity, minHeight: 100)
+                                            .overlay(
+                                                Text("Prize image unavailable")
+                                                    .font(.pixelifySmall)
+                                                    .foregroundColor(.gray)
+                                            )
+                                    default:
+                                        Rectangle()
+                                            .fill(Color.white.opacity(0.05))
+                                            .frame(maxWidth: .infinity, minHeight: 100)
+                                            .overlay(ProgressView().tint(.gray))
+                                    }
+                                }
+                            }
+
                             Text(campaign?.prize ?? "")
                                 .font(.pixelifyBody)
                                 .foregroundColor(.yellow)

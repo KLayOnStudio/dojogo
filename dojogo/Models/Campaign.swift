@@ -7,6 +7,7 @@ struct Campaign: Codable, Identifiable {
     let rules: String?
     let prize: String?
     let prizeUrl: String?
+    let prizeImageUrl: String?
     let startDate: Date
     let endDate: Date
     let isActive: Bool

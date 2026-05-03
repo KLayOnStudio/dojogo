@@ -799,7 +799,7 @@ class APIService: ObservableObject {
             // Parse ISO date strings like "2026-05-04"
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd"
-            formatter.timeZone = TimeZone(identifier: "UTC")
+            formatter.timeZone = Calendar.current.timeZone
             if let date = formatter.date(from: string) { return date }
             // Fallback to full ISO8601
             let iso = ISO8601DateFormatter()

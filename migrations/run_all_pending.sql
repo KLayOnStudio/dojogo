@@ -68,3 +68,35 @@ SET @sql = IF(@col_exists = 0,
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+-- 009b: Add prize_image_url to campaigns table
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaigns' AND COLUMN_NAME = 'prize_image_url');
+SET @stmt = IF(@col_exists = 0,
+    'ALTER TABLE campaigns ADD COLUMN prize_image_url VARCHAR(500) DEFAULT NULL AFTER prize_url',
+    'SELECT 1');
+PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;
+
+-- 010: User privacy (is_public), sensor mode, announcements table
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'is_public');
+SET @stmt = IF(@col_exists = 0,
+    'ALTER TABLE users ADD COLUMN is_public BOOLEAN NOT NULL DEFAULT TRUE',
+    'SELECT 1');
+PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sessions' AND COLUMN_NAME = 'sensor_mode');
+SET @stmt = IF(@col_exists = 0,
+    'ALTER TABLE sessions ADD COLUMN sensor_mode ENUM(''mount'',''phone'',''other'') NOT NULL DEFAULT ''phone''',
+    'SELECT 1');
+PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;
+
+CREATE TABLE IF NOT EXISTS announcements (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    body TEXT NOT NULL,
+    image_url VARCHAR(500) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP DEFAULT NULL
+);

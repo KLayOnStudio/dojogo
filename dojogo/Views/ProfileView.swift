@@ -634,12 +634,15 @@ struct ProfileView: View {
                                             .foregroundColor(.gray)
                                     }
                                     Spacer()
-                                    Toggle("", isOn: $isPublic)
-                                        .labelsHidden()
-                                        .tint(.yellow)
-                                        .onChange(of: isPublic) { newValue in
+                                    Toggle("", isOn: Binding(
+                                        get: { isPublic },
+                                        set: { newValue in
+                                            isPublic = newValue
                                             savePrivacy(newValue)
                                         }
+                                    ))
+                                    .labelsHidden()
+                                    .tint(.yellow)
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 14)

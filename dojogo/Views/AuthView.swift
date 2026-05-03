@@ -3,6 +3,9 @@ import SwiftUI
 struct AuthView: View {
     @StateObject private var authViewModel = AuthViewModel()
     @State private var showGuestInfo = false
+    @State private var frameIndex = 0
+    private let frames = (1...9).map { "SukuraLoading\($0)" }
+    private let animTimer = Timer.publish(every: 0.12, on: .main, in: .common).autoconnect()
 
     var body: some View {
         GeometryReader { geometry in
@@ -18,11 +21,15 @@ struct AuthView: View {
                     )
                     .ignoresSafeArea()
 
-                // Background image
-                Image("MainLogo")
+                // Animated background
+                Image(frames[frameIndex])
+                    .interpolation(.none)
                     .resizable()
                     .scaledToFit()
                     .frame(width: geometry.size.width)
+                    .onReceive(animTimer) { _ in
+                        frameIndex = (frameIndex + 1) % frames.count
+                    }
 
                 VStack(spacing: 0) {
                     Spacer()

@@ -46,14 +46,14 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         # Fetch campaign (by ID or most recent active/upcoming)
         if campaign_id:
             campaign_rows = execute_query(
-                "SELECT id, name, description, rules, prize, prize_url, start_date, end_date, is_active "
+                "SELECT id, name, description, rules, prize, prize_url, prize_image_url, start_date, end_date, is_active "
                 "FROM campaigns WHERE id = %s",
                 (campaign_id,),
                 fetch=True
             )
         else:
             campaign_rows = execute_query(
-                "SELECT id, name, description, rules, prize, prize_url, start_date, end_date, is_active "
+                "SELECT id, name, description, rules, prize, prize_url, prize_image_url, start_date, end_date, is_active "
                 "FROM campaigns WHERE is_active = TRUE ORDER BY start_date DESC LIMIT 1",
                 fetch=True
             )
@@ -179,6 +179,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             "rules": c['rules'],
             "prize": c['prize'],
             "prizeUrl": c['prize_url'],
+            "prizeImageUrl": c.get('prize_image_url'),
             "startDate": start.isoformat() if hasattr(start, 'isoformat') else str(start),
             "endDate": end.isoformat() if hasattr(end, 'isoformat') else str(end),
             "isActive": bool(c['is_active']),
