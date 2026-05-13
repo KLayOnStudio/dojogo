@@ -19,33 +19,50 @@ struct CampaignView: View {
     private var entries: [CampaignLeaderboardEntry] { leaderboardData?.entries ?? [] }
     private var participantCount: Int { leaderboardData?.participantCount ?? 0 }
 
+    private var cal: Calendar { Calendar.current }
+    private var today: Date { cal.startOfDay(for: Date()) }
+
     private var campaignStarted: Bool {
         guard let c = campaign else { return false }
-        return Date() >= c.startDate
+        return today >= cal.startOfDay(for: c.startDate)
     }
 
     private var status: CampaignStatus {
         guard let c = campaign else { return .upcoming }
-        let now = Date()
-        if now < c.startDate { return .upcoming }
-        if now > c.endDate { return .ended }
+        let startDay = cal.startOfDay(for: c.startDate)
+        let endDay = cal.startOfDay(for: c.endDate)
+        if today < startDay { return .upcoming }
+        if today > endDay { return .ended }
         return .active
     }
 
     private var daysUntilStart: Int {
         guard let c = campaign else { return 0 }
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
         let startDay = cal.startOfDay(for: c.startDate)
         return max(cal.dateComponents([.day], from: today, to: startDay).day ?? 0, 0)
     }
 
     private var daysRemaining: Int {
         guard let c = campaign else { return 0 }
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
         let endDay = cal.startOfDay(for: c.endDate)
         return max(cal.dateComponents([.day], from: today, to: endDay).day ?? 0, 0)
+    }
+
+    private var campaignDateRangeLabel: String {
+        guard let c = campaign else { return "" }
+        let fmt = DateFormatter()
+        fmt.dateFormat = "MMM d"
+        let start = fmt.string(from: c.startDate).uppercased()
+        fmt.dateFormat = "MMM d, yyyy"
+        let end = fmt.string(from: c.endDate).uppercased()
+        return "\(start) – \(end)"
+    }
+
+    private var campaignStartLabel: String {
+        guard let c = campaign else { return "" }
+        let fmt = DateFormatter()
+        fmt.dateFormat = "MMM d"
+        return fmt.string(from: c.startDate)
     }
 
     enum CampaignStatus {
@@ -159,7 +176,7 @@ struct CampaignView: View {
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
 
-            Text("MAY 4 – MAY 17, 2026")
+            Text(campaignDateRangeLabel)
                 .font(.pixelifySmall)
                 .foregroundColor(.gray)
 
@@ -243,7 +260,7 @@ struct CampaignView: View {
                     .foregroundColor(.gray)
                 Spacer()
                 if !campaignStarted {
-                    Text("Rankings open on May 4")
+                    Text("Rankings open on \(campaignStartLabel)")
                         .font(.pixelify(size: 9))
                         .foregroundColor(.gray)
                 }
