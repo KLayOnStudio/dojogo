@@ -1,7 +1,6 @@
 import azure.functions as func
 import json
 import logging
-import jwt
 import sys
 import os
 
@@ -9,7 +8,7 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 
 from database import execute_query, datetime_to_timestamp
-from auth import get_token_from_header
+from auth import get_token_from_header, decode_jwt_payload
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info('CreateUserNoAuth function processed a request.')
@@ -31,8 +30,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         if token:
             try:
-                unverified_payload = jwt.decode(token, options={"verify_signature": False})
-                user_id = unverified_payload.get('sub')
+                unverified_payload = decode_jwt_payload(token)
+                user_id = unverified_payload.get('sub') if unverified_payload else None
                 logging.info(f"MANUAL AUTH DEBUG - Extracted user_id: {user_id}")
             except Exception as jwt_error:
                 logging.error(f"MANUAL AUTH DEBUG - JWT decode failed: {jwt_error}")

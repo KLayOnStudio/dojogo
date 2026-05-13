@@ -29,6 +29,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install dependencies
+        run: |
+          cd dojogo-api
+          pip install -r requirements.txt -t .
+
       - name: Zip artifact for deployment
         run: |
           cd dojogo-api
@@ -74,5 +79,3 @@ jobs:
           app-name: 'dojogo-api'
           slot-name: 'Production'
           package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
-          scm-do-build-during-deployment: true
-          enable-oryx-build: true

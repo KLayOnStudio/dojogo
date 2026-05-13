@@ -1,14 +1,13 @@
 import azure.functions as func
 import json
 import logging
-import jwt
 import sys
 import os
 
 # Add shared directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 
-from auth import get_token_from_header
+from auth import get_token_from_header, decode_jwt_payload
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info('TestAuth function processed a request.')
@@ -27,11 +26,10 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             result["token_start"] = token[:50] if len(token) > 50 else token
 
             try:
-                # Try to decode without verification
-                unverified_payload = jwt.decode(token, options={"verify_signature": False})
-                result["jwt_decode_success"] = True
+                unverified_payload = decode_jwt_payload(token)
+                result["jwt_decode_success"] = unverified_payload is not None
                 result["jwt_payload"] = unverified_payload
-                result["user_id_from_token"] = unverified_payload.get('sub')
+                result["user_id_from_token"] = unverified_payload.get('sub') if unverified_payload else None
             except Exception as jwt_error:
                 result["jwt_decode_success"] = False
                 result["jwt_error"] = str(jwt_error)

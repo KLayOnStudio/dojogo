@@ -1,11 +1,20 @@
 """
 Authentication utilities for Azure Functions
 """
-import jwt
+import base64
 import json
 import logging
 from functools import wraps
 import azure.functions as func
+
+def decode_jwt_payload(token):
+    """Decode JWT payload without verification (pure Python, no dependencies)."""
+    try:
+        payload_b64 = token.split('.')[1]
+        payload_b64 += '=' * (4 - len(payload_b64) % 4)
+        return json.loads(base64.urlsafe_b64decode(payload_b64))
+    except Exception:
+        return None
 
 def get_token_from_header(req):
     auth_header = req.headers.get('Authorization')
@@ -38,9 +47,9 @@ def require_auth(f):
 
             # Decode without verification for now (since we know tokens work)
             try:
-                unverified_payload = jwt.decode(token, options={"verify_signature": False})
+                unverified_payload = decode_jwt_payload(token)
                 logging.info(f"Unverified token payload: {unverified_payload}")
-                req.user_id = unverified_payload.get('sub')
+                req.user_id = unverified_payload.get('sub') if unverified_payload else None
                 logging.info(f"Using token-based user_id: {req.user_id}")
 
                 # Call the wrapped function
@@ -56,7 +65,7 @@ def require_auth(f):
             except Exception as decode_error:
                 logging.error(f"Failed to decode token: {decode_error}", exc_info=True)
                 return func.HttpResponse(
-                    json.dumps({"error": f"Invalid token: {str(decode_error)}"}),
+                    json.dumps({"error": "Invalid token"}),
                     status_code=401,
                     headers={"Content-Type": "application/json"}
                 )
