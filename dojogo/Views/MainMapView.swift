@@ -25,6 +25,7 @@ struct MainMapView: View {
     @State private var boatSway: CGFloat = 0
     @State private var showAnnouncements = false
     @State private var hasUnreadAnnouncements = false
+    @State private var unreadNotificationCount = 0
     @State private var showCampaign = false
     @State private var campaignSeen = false
     @State private var campaignPulse: CGFloat = 1.0
@@ -296,11 +297,18 @@ struct MainMapView: View {
                                         .resizable()
                                         .scaledToFit()
                                         .frame(width: 36, height: 36)
-                                    if hasUnreadAnnouncements {
-                                        Circle()
-                                            .fill(Color.red)
-                                            .frame(width: 10, height: 10)
-                                            .offset(x: 2, y: -2)
+                                    if hasUnreadAnnouncements || unreadNotificationCount > 0 {
+                                        ZStack {
+                                            Circle()
+                                                .fill(Color.red)
+                                                .frame(width: unreadNotificationCount > 0 ? 16 : 10, height: unreadNotificationCount > 0 ? 16 : 10)
+                                            if unreadNotificationCount > 0 {
+                                                Text("\(min(unreadNotificationCount, 9))")
+                                                    .font(.pixelify(size: 8, weight: .bold))
+                                                    .foregroundColor(.white)
+                                            }
+                                        }
+                                        .offset(x: 2, y: -2)
                                     }
                                 }
                                 Text("HOME")
@@ -479,8 +487,9 @@ struct MainMapView: View {
         }
         .sheet(isPresented: $showAnnouncements, onDismiss: {
             hasUnreadAnnouncements = false
+            unreadNotificationCount = 0
         }) {
-            AnnouncementBoardView()
+            InboxView()
         }
     }
 
@@ -514,16 +523,23 @@ struct MainMapView: View {
     private func checkAnnouncements() async {
         do {
             let items = try await APIService.shared.getAnnouncements()
-            guard let newest = items.first else { return }
-            let lastSeen = LocalStorageService.shared.getLastSeenAnnouncementId()
-            if newest.id > lastSeen {
-                await MainActor.run {
-                    hasUnreadAnnouncements = true
-                    showAnnouncements = true
+            if let newest = items.first {
+                let lastSeen = LocalStorageService.shared.getLastSeenAnnouncementId()
+                if newest.id > lastSeen {
+                    await MainActor.run { hasUnreadAnnouncements = true }
                 }
             }
         } catch {
             print("Failed to check announcements: \(error)")
+        }
+        guard !authViewModel.isGuest else { return }
+        do {
+            let result = try await APIService.shared.getNotifications()
+            if result.unreadCount > 0 {
+                await MainActor.run { unreadNotificationCount = result.unreadCount }
+            }
+        } catch {
+            print("Failed to check notifications: \(error)")
         }
     }
 

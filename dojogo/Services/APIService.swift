@@ -641,6 +641,46 @@ class APIService: ObservableObject {
         return try decoder.decode(AnnouncementsResponse.self, from: data).announcements
     }
 
+    func getNotifications() async throws -> NotificationsResponse {
+        let url = URL(string: "\(baseURL)/GetNotifications")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        try await addAuthHeaders(to: &request)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+        return try configuredDecoder().decode(NotificationsResponse.self, from: data)
+    }
+
+    func markNotificationsRead() async throws {
+        let url = URL(string: "\(baseURL)/MarkNotificationsRead")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        try await addAuthHeaders(to: &request)
+        _ = try await URLSession.shared.data(for: request)
+    }
+
+    func sendCampaignInvite(campaignId: Int, userIds: [String]) async throws -> Int {
+        let url = URL(string: "\(baseURL)/SendCampaignInvite")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        try await addAuthHeaders(to: &request)
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "campaignId": campaignId,
+            "userIds": userIds
+        ])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+        struct InviteResponse: Codable { let sent: Int }
+        return (try? configuredDecoder().decode(InviteResponse.self, from: data).sent) ?? 0
+    }
+
     // MARK: - Friends / Nakama
 
     func searchUsers(query: String, limit: Int = 10) async throws -> [UserSummary] {

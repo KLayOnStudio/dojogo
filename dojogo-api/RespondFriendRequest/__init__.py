@@ -6,6 +6,7 @@ import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 
+import json
 from database import execute_query, execute_transaction
 from auth import require_auth
 
@@ -75,6 +76,12 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             a = min(fr['from_user_id'], fr['to_user_id'])
             b = max(fr['from_user_id'], fr['to_user_id'])
 
+            # Get acceptor's nickname for the notification
+            acceptor = execute_query(
+                "SELECT nickname FROM users WHERE id = %s", (user_id,), fetch=True
+            )
+            acceptor_name = acceptor[0]['nickname'] if acceptor and acceptor[0]['nickname'] else "Your nakama request"
+
             execute_transaction([
                 (
                     "UPDATE friend_requests SET status = 'accepted', responded_at = NOW() WHERE id = %s",
@@ -83,6 +90,16 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 (
                     "INSERT IGNORE INTO friendships (user_id_a, user_id_b) VALUES (%s, %s)",
                     (a, b)
+                ),
+                (
+                    """INSERT INTO notifications (user_id, type, title, body, data)
+                       VALUES (%s, 'friend_accepted', %s, %s, %s)""",
+                    (
+                        fr['from_user_id'],
+                        f"{acceptor_name} accepted!",
+                        "You're now nakama",
+                        json.dumps({"userId": user_id})
+                    )
                 )
             ])
         else:

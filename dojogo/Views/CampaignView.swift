@@ -7,6 +7,7 @@ struct CampaignView: View {
     @State private var isLoading = true
     @State private var isJoining = false
     @State private var showRules = false
+    @State private var showInvite = false
     @State private var pendingRequestIds: Set<String> = []   // optimistic UI
 
     // Sprite animation
@@ -129,7 +130,27 @@ struct CampaignView: View {
                             if status != .ended {
                                 joinSection
                                     .padding(.horizontal, 20)
+                                    .padding(.bottom, isParticipant ? 8 : 20)
+
+                                if isParticipant {
+                                    Button(action: { showInvite = true }) {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: "person.2.fill")
+                                                .font(.system(size: 12))
+                                            Text("INVITE NAKAMA")
+                                                .font(.pixelifySmall)
+                                        }
+                                        .foregroundColor(.cyan)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 10)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 0)
+                                                .stroke(Color.cyan.opacity(0.5), lineWidth: 1)
+                                        )
+                                    }
+                                    .padding(.horizontal, 20)
                                     .padding(.bottom, 20)
+                                }
                             }
 
                             Divider()
@@ -148,6 +169,11 @@ struct CampaignView: View {
         }
         .sheet(isPresented: $showRules) {
             CampaignRulesSheet(campaign: campaign)
+        }
+        .sheet(isPresented: $showInvite) {
+            if let c = campaign {
+                CampaignInviteSheet(campaign: c, participantIds: Set(entries.map { $0.userId }))
+            }
         }
     }
 
@@ -596,6 +622,143 @@ private struct CampaignRulesSheet: View {
                     .padding(20)
                 }
             }
+        }
+    }
+}
+
+// MARK: - Invite Sheet
+
+private struct CampaignInviteSheet: View {
+    let campaign: Campaign
+    let participantIds: Set<String>
+    @Environment(\.dismiss) var dismiss
+
+    @State private var friends: [FriendInfo] = []
+    @State private var selected: Set<String> = []
+    @State private var isLoading = true
+    @State private var isSending = false
+    @State private var sentCount: Int? = nil
+
+    private var eligibleFriends: [FriendInfo] {
+        friends.filter { !participantIds.contains($0.userId) }
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VStack(spacing: 0) {
+                HStack {
+                    Button("CANCEL") { dismiss() }
+                        .font(.pixelifyButton)
+                        .foregroundColor(.white)
+                    Spacer()
+                    Text("INVITE NAKAMA")
+                        .font(.pixelifyHeadline)
+                        .foregroundColor(.white)
+                    Spacer()
+                    Button(action: sendInvites) {
+                        Text(isSending ? "..." : "SEND")
+                            .font(.pixelifyButton)
+                            .foregroundColor(selected.isEmpty ? .gray : .cyan)
+                    }
+                    .disabled(selected.isEmpty || isSending)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 20)
+
+                if let count = sentCount {
+                    Text("Invited \(count) nakama!")
+                        .font(.pixelifyBody)
+                        .foregroundColor(.green)
+                        .padding(.bottom, 16)
+                } else if isLoading {
+                    Spacer()
+                    ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    Spacer()
+                } else if eligibleFriends.isEmpty {
+                    Spacer()
+                    Text("All your nakama are already in!")
+                        .font(.pixelifyBody)
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                        .padding(24)
+                    Spacer()
+                } else {
+                    ScrollView {
+                        VStack(spacing: 1) {
+                            ForEach(eligibleFriends, id: \.userId) { friend in
+                                HStack(spacing: 12) {
+                                    Text(friend.nickname ?? "#\(friend.userNumber ?? 0)")
+                                        .font(.pixelifyBody)
+                                        .foregroundColor(.white)
+                                    if let rank = friend.kendoRank {
+                                        Text(rank)
+                                            .font(.pixelify(size: 9))
+                                            .foregroundColor(.gray)
+                                    }
+                                    Spacer()
+                                    if selected.contains(friend.userId) {
+                                        Image(systemName: "checkmark.square.fill")
+                                            .foregroundColor(.cyan)
+                                    } else {
+                                        Image(systemName: "square")
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 14)
+                                .background(selected.contains(friend.userId) ? Color.cyan.opacity(0.08) : Color.clear)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    if selected.contains(friend.userId) {
+                                        selected.remove(friend.userId)
+                                    } else {
+                                        selected.insert(friend.userId)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if !eligibleFriends.isEmpty {
+                        Button(action: {
+                            if selected.count == eligibleFriends.count {
+                                selected.removeAll()
+                            } else {
+                                selected = Set(eligibleFriends.map { $0.userId })
+                            }
+                        }) {
+                            Text(selected.count == eligibleFriends.count ? "Deselect All" : "Select All")
+                                .font(.pixelifySmall)
+                                .foregroundColor(.gray)
+                        }
+                        .padding(.vertical, 12)
+                    }
+                }
+            }
+        }
+        .task { await loadFriends() }
+    }
+
+    private func loadFriends() async {
+        friends = (try? await APIService.shared.getFriends()) ?? []
+        isLoading = false
+    }
+
+    private func sendInvites() {
+        guard !selected.isEmpty else { return }
+        isSending = true
+        Task {
+            let count = (try? await APIService.shared.sendCampaignInvite(
+                campaignId: campaign.id,
+                userIds: Array(selected)
+            )) ?? 0
+            await MainActor.run {
+                sentCount = count
+                isSending = false
+            }
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            await MainActor.run { dismiss() }
         }
     }
 }
