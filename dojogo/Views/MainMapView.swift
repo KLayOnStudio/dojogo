@@ -521,7 +521,27 @@ struct MainMapView: View {
             avatarPosition = current.mapPosition
         }
         Task {
+            await syncStageProgressFromServer()
             await checkAnnouncements()
+        }
+    }
+
+    private func syncStageProgressFromServer() async {
+        guard !authViewModel.isGuest,
+              let userId = authViewModel.currentUser?.id else { return }
+        do {
+            let serverSwings = try await APIService.shared.getStageProgress()
+            await MainActor.run {
+                for (stageId, serverCount) in serverSwings {
+                    let localCount = stageSwings[stageId] ?? 0
+                    if serverCount > localCount {
+                        stageSwings[stageId] = serverCount
+                        LocalStorageService.shared.addSwingsToStage(stageId, swings: serverCount - localCount, for: userId)
+                    }
+                }
+            }
+        } catch {
+            print("Failed to sync stage progress: \(error)")
         }
     }
 

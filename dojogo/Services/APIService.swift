@@ -633,6 +633,27 @@ class APIService: ObservableObject {
 
     // MARK: - Announcements
 
+    func getStageProgress() async throws -> [Int: Int] {
+        let url = URL(string: "\(baseURL)/GetStageProgress")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        try await addAuthHeaders(to: &request)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+
+        struct ProgressResponse: Codable {
+            let stageProgress: [String: Int]
+        }
+        let parsed = try configuredDecoder().decode(ProgressResponse.self, from: data)
+        return Dictionary(uniqueKeysWithValues: parsed.stageProgress.compactMap { k, v in
+            guard let id = Int(k) else { return nil }
+            return (id, v)
+        })
+    }
+
     func getAnnouncements() async throws -> [Announcement] {
         let url = URL(string: "\(baseURL)/GetAnnouncements")!
         var request = URLRequest(url: url)
