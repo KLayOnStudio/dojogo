@@ -2,6 +2,8 @@ import SwiftUI
 
 struct InboxView: View {
     @Environment(\.dismiss) var dismiss
+    var onOpenCampaign: (() -> Void)? = nil
+
     @State private var announcements: [Announcement] = []
     @State private var notifications: [AppNotification] = []
     @State private var isLoading = true
@@ -41,15 +43,15 @@ struct InboxView: View {
                     Spacer()
                 } else {
                     ScrollView {
-                        VStack(spacing: 12) {
+                        VStack(spacing: 16) {
                             ForEach(notifications) { n in
-                                NotificationCard(notification: n)
+                                NotificationCard(notification: n, onOpenCampaign: n.type == "campaign_invite" ? onOpenCampaign : nil)
                             }
                             ForEach(announcements) { a in
                                 AnnouncementCard(announcement: a)
                             }
                         }
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, 16)
                         .padding(.bottom, 32)
                     }
                 }
@@ -76,52 +78,98 @@ struct InboxView: View {
     }
 }
 
+// MARK: - RPG Speech Bubble Notification Card
+
 private struct NotificationCard: View {
     let notification: AppNotification
+    var onOpenCampaign: (() -> Void)? = nil
 
-    var icon: String {
-        switch notification.type {
-        case "campaign_invite": return "🥋"
-        case "friend_accepted": return "🤝"
-        default: return "📬"
-        }
+    private let avatarSize: CGFloat = 64
+    private var borderColor: Color {
+        notification.isRead ? Color.white.opacity(0.25) : Color.yellow.opacity(0.7)
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text(icon)
-                .font(.system(size: 24))
+        Button(action: {
+            if notification.type == "campaign_invite" {
+                onOpenCampaign?()
+            }
+        }) {
+            HStack(alignment: .bottom, spacing: 0) {
+                // Left: top half of sender avatar sprite
+                avatarView
 
+                // Right: speech bubble dialog box
+                bubbleBox
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(notification.type != "campaign_invite" || onOpenCampaign == nil)
+    }
+
+    private var avatarView: some View {
+        let name = notification.senderAvatar ?? "kendoka"
+        return Image(name)
+            .interpolation(.none)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: avatarSize, height: avatarSize)
+            .frame(width: avatarSize, height: avatarSize / 2, alignment: .top)
+            .clipped()
+            .padding(.bottom, 0)
+    }
+
+    private var bubbleBox: some View {
+        ZStack(alignment: .topTrailing) {
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(notification.title)
-                        .font(.pixelifyBodyBold)
-                        .foregroundColor(notification.isRead ? .white.opacity(0.7) : .white)
-                    Spacer()
-                    if !notification.isRead {
-                        Circle()
-                            .fill(Color.yellow)
-                            .frame(width: 8, height: 8)
-                    }
-                }
+                Text(notification.title)
+                    .font(.pixelifyBodyBold)
+                    .foregroundColor(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 Text(notification.body)
                     .font(.pixelifySmall)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.white.opacity(0.8))
+                    .fixedSize(horizontal: false, vertical: true)
+
                 if let date = notification.createdAt {
                     Text(date.formatted(.dateTime.month(.abbreviated).day()))
                         .font(.pixelify(size: 9))
-                        .foregroundColor(.gray.opacity(0.7))
+                        .foregroundColor(.gray.opacity(0.8))
+                        .padding(.top, 2)
                 }
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.black)
+            .overlay(
+                Image("SpeechBubbleBorder")
+                    .resizable()
+                    .renderingMode(.template)
+                    .foregroundColor(borderColor)
+            )
+
+            if !notification.isRead {
+                Circle()
+                    .fill(Color.yellow)
+                    .frame(width: 7, height: 7)
+                    .offset(x: -8, y: 8)
+            }
+
+            if notification.type == "campaign_invite" && onOpenCampaign != nil {
+                Text("▶")
+                    .font(.pixelify(size: 10))
+                    .foregroundColor(.white.opacity(0.5))
+                    .padding(.trailing, 8)
+                    .padding(.top, 10)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            }
         }
-        .padding(14)
-        .background(notification.isRead ? Color.white.opacity(0.03) : Color.yellow.opacity(0.06))
-        .overlay(
-            RoundedRectangle(cornerRadius: 0)
-                .stroke(notification.isRead ? Color.white.opacity(0.1) : Color.yellow.opacity(0.3), lineWidth: 1)
-        )
     }
 }
+
+// MARK: - Announcement Card
 
 private struct AnnouncementCard: View {
     let announcement: Announcement
@@ -165,7 +213,7 @@ private struct AnnouncementCard: View {
         }
         .background(Color.white.opacity(0.05))
         .overlay(
-            RoundedRectangle(cornerRadius: 0)
+            Rectangle()
                 .stroke(Color.white.opacity(0.15), lineWidth: 1)
         )
     }

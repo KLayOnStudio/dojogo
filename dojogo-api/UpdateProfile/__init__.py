@@ -32,6 +32,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         kendo_experience_months = req_body.get('kendoExperienceMonths')
         home_dojo = req_body.get('homeDojo')
         is_public = req_body.get('isPublic')
+        avatar = req_body.get('avatar')
 
         # Check if user exists
         user = execute_query(
@@ -159,6 +160,18 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             update_fields.append("is_public = %s")
             update_values.append(is_public)
 
+        # Handle avatar update
+        valid_avatars = ["kendoka","kendoka2","kendoka3","kendoka4","kendoka5","kendoka6","kendoka7","kendoka8","kendoka9","kendoka10","Profile_men"]
+        if avatar is not None:
+            if avatar not in valid_avatars:
+                return func.HttpResponse(
+                    json.dumps({"error": "Invalid avatar"}),
+                    status_code=400,
+                    headers={"Content-Type": "application/json"}
+                )
+            update_fields.append("avatar = %s")
+            update_values.append(avatar)
+
         if not update_fields:
             return func.HttpResponse(
                 json.dumps({"error": "No fields to update"}),
@@ -174,7 +187,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         # Return updated user
         updated_user = execute_query(
-            "SELECT id, user_number, name, nickname, nickname_last_changed, kendo_rank, kendo_experience_years, kendo_experience_months, home_dojo, email, streak, total_count, created_at, is_public FROM users WHERE id = %s",
+            "SELECT id, user_number, name, nickname, nickname_last_changed, kendo_rank, kendo_experience_years, kendo_experience_months, home_dojo, avatar, email, streak, total_count, created_at, is_public FROM users WHERE id = %s",
             (user_id,),
             fetch=True
         )
@@ -195,7 +208,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 "streak": user_data.get("streak"),
                 "totalCount": user_data.get("total_count"),
                 "createdAt": datetime_to_timestamp(user_data.get("created_at")),
-                "isPublic": bool(user_data.get("is_public", True))
+                "isPublic": bool(user_data.get("is_public", True)),
+                "avatar": user_data.get("avatar", "kendoka")
             }
 
             return func.HttpResponse(

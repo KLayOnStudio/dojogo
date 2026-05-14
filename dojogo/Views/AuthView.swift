@@ -4,7 +4,7 @@ struct AuthView: View {
     @StateObject private var authViewModel = AuthViewModel()
     @State private var showGuestInfo = false
     @State private var frameIndex = 0
-    private let frames = (1...9).map { "SukuraLoading\($0)" }
+    private let frames = (1...9).map { "SakuraLoading\($0)" }
     private let animTimer = Timer.publish(every: 0.12, on: .main, in: .common).autoconnect()
 
     var body: some View {

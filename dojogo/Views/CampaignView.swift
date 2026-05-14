@@ -12,7 +12,7 @@ struct CampaignView: View {
 
     // Sprite animation
     @State private var frameIndex = 0
-    private let frames = (1...5).map { "SkuraCampaign400_\($0)" }
+    private let frames = (1...5).map { "SakuraCampaign400_\($0)" }
     private let animTimer = Timer.publish(every: 0.15, on: .main, in: .common).autoconnect()
 
     private var campaign: Campaign? { leaderboardData?.campaign }

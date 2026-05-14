@@ -98,7 +98,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                         fr['from_user_id'],
                         f"{acceptor_name} accepted!",
                         "You're now nakama",
-                        json.dumps({"userId": user_id})
+                        json.dumps({"fromUserId": user_id})
                     )
                 )
             ])

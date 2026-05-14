@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "SukuraLoading7.png",
+      "filename" : "SakuraCampaign400_3.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "SukuraLoading_540_7.png",
+      "filename" : "SakuraCampaign600_3.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "SukuraLoading_720_6.png",
+      "filename" : "SakuraCampaign800_3.png",
       "idiom" : "universal",
       "scale" : "3x"
     }

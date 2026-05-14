@@ -73,7 +73,7 @@ struct ProfileView: View {
                             HStack(spacing: 24) {
                                 Button(action: {
                                     selectedAvatarIndex = (selectedAvatarIndex - 1 + avatars.count) % avatars.count
-                                    LocalStorageService.shared.saveSelectedAvatar(avatars[selectedAvatarIndex])
+                                    syncAvatar(avatars[selectedAvatarIndex])
                                 }) {
                                     Text("◀")
                                         .font(.pixelifyBody)
@@ -100,7 +100,7 @@ struct ProfileView: View {
 
                                 Button(action: {
                                     selectedAvatarIndex = (selectedAvatarIndex + 1) % avatars.count
-                                    LocalStorageService.shared.saveSelectedAvatar(avatars[selectedAvatarIndex])
+                                    syncAvatar(avatars[selectedAvatarIndex])
                                 }) {
                                     Text("▶")
                                         .font(.pixelifyBody)
@@ -708,12 +708,8 @@ struct ProfileView: View {
             AboutView()
         }
         .onAppear {
-            // Load from cached user data first
             loadUserData()
             loadDojoNames()
-            // Initialize avatar index from saved preference
-            let saved = LocalStorageService.shared.getSelectedAvatar()
-            selectedAvatarIndex = avatars.firstIndex(of: saved) ?? 0
         }
     }
 
@@ -791,6 +787,36 @@ struct ProfileView: View {
         experienceMonths = user.kendoExperienceMonths
         homeDojo = user.homeDojo ?? ""
         isPublic = user.isPublic
+        let localAvatar = LocalStorageService.shared.getSelectedAvatar()
+        let serverAvatar = user.avatar
+        if serverAvatar == "kendoka" && localAvatar != "kendoka" && avatars.contains(localAvatar) {
+            // User had a local preference before DB tracking existed — migrate it up to the server
+            selectedAvatarIndex = avatars.firstIndex(of: localAvatar) ?? 0
+            syncAvatar(localAvatar)
+        } else {
+            selectedAvatarIndex = avatars.firstIndex(of: serverAvatar) ?? 0
+            LocalStorageService.shared.saveSelectedAvatar(serverAvatar)
+        }
+    }
+
+    // MARK: - Avatar Sync
+
+    private func syncAvatar(_ avatarName: String) {
+        LocalStorageService.shared.saveSelectedAvatar(avatarName)
+        Task {
+            do {
+                let updatedUser = try await APIService.shared.updateProfile(
+                    nickname: nil, kendoRank: nil, experienceYears: nil,
+                    experienceMonths: nil, avatar: avatarName
+                )
+                await MainActor.run {
+                    LocalStorageService.shared.saveUser(updatedUser)
+                    authViewModel.currentUser = updatedUser
+                }
+            } catch {
+                print("Failed to sync avatar: \(error)")
+            }
+        }
     }
 
     // MARK: - Individual Save Functions

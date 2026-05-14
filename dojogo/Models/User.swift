@@ -54,6 +54,7 @@ struct User: Codable, Identifiable {
     var kendoExperienceYears: Int = 0 // Years of practice
     var kendoExperienceMonths: Int = 0 // Additional months (0-11)
     var homeDojo: String? // Home dojo name
+    var avatar: String // Avatar image name
     let email: String
     var streak: Int
     var totalCount: Int
@@ -73,6 +74,7 @@ struct User: Codable, Identifiable {
         kendoExperienceYears = try container.decodeIfPresent(Int.self, forKey: .kendoExperienceYears) ?? 0
         kendoExperienceMonths = try container.decodeIfPresent(Int.self, forKey: .kendoExperienceMonths) ?? 0
         homeDojo = try container.decodeIfPresent(String.self, forKey: .homeDojo)
+        avatar = try container.decodeIfPresent(String.self, forKey: .avatar) ?? "kendoka"
         email = try container.decode(String.self, forKey: .email)
         streak = try container.decode(Int.self, forKey: .streak)
         totalCount = try container.decode(Int.self, forKey: .totalCount)
@@ -120,6 +122,7 @@ struct User: Codable, Identifiable {
         self.kendoExperienceYears = 0
         self.kendoExperienceMonths = 0
         self.homeDojo = nil
+        self.avatar = "kendoka"
         self.email = email
         self.streak = 0
         self.totalCount = 0

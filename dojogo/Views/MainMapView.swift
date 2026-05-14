@@ -489,7 +489,12 @@ struct MainMapView: View {
             hasUnreadAnnouncements = false
             unreadNotificationCount = 0
         }) {
-            InboxView()
+            InboxView(onOpenCampaign: {
+                showAnnouncements = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    showCampaign = true
+                }
+            })
         }
     }
 
@@ -583,7 +588,7 @@ struct CampaignIconView: View {
     let enterFrameIndex: Int
 
     @State private var frameIndex = 0
-    private let frames = (1...5).map { "SkuraCampaign400_\($0)" }
+    private let frames = (1...5).map { "SakuraCampaign400_\($0)" }
     private let enterFrames = (1...3).map { "CampaignEnter400_\($0)" }
     private let timer = Timer.publish(every: 0.15, on: .main, in: .common).autoconnect()
 

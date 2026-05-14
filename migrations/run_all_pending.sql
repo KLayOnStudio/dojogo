@@ -101,7 +101,15 @@ CREATE TABLE IF NOT EXISTS announcements (
     expires_at TIMESTAMP DEFAULT NULL
 );
 
--- 011: Per-user notifications (campaign invites, friend accepted)
+-- 011: Avatar choice per user
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'avatar');
+SET @stmt = IF(@col_exists = 0,
+    "ALTER TABLE users ADD COLUMN avatar VARCHAR(50) DEFAULT 'kendoka' AFTER home_dojo",
+    'SELECT 1');
+PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;
+
+-- 012: Per-user notifications (campaign invites, friend accepted)
 CREATE TABLE IF NOT EXISTS notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id VARCHAR(255) NOT NULL,

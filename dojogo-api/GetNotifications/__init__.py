@@ -18,10 +18,12 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         user_id = req.user_id
 
         rows = execute_query(
-            """SELECT id, type, title, body, data, is_read, created_at
-               FROM notifications
-               WHERE user_id = %s
-               ORDER BY created_at DESC
+            """SELECT n.id, n.type, n.title, n.body, n.data, n.is_read, n.created_at,
+                      u.avatar AS sender_avatar
+               FROM notifications n
+               LEFT JOIN users u ON u.id = JSON_UNQUOTE(JSON_EXTRACT(n.data, '$.fromUserId'))
+               WHERE n.user_id = %s
+               ORDER BY n.created_at DESC
                LIMIT 50""",
             (user_id,),
             fetch=True
@@ -34,7 +36,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             "body": r["body"],
             "data": json.loads(r["data"]) if r["data"] else None,
             "isRead": bool(r["is_read"]),
-            "createdAt": int(r["created_at"].timestamp()) if r["created_at"] else None
+            "createdAt": int(r["created_at"].timestamp()) if r["created_at"] else None,
+            "senderAvatar": r.get("sender_avatar") or "kendoka"
         } for r in (rows or [])]
 
         unread_count = sum(1 for n in notifications if not n["isRead"])

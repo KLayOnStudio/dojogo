@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "SukuraLoading8.png",
+      "filename" : "SakuraLoading5.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "SukuraLoading_540_8.png",
+      "filename" : "SakuraLoading_540_5.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "SukuraLoading_720_8.png",
+      "filename" : "SakuraLoading_720_5.png",
       "idiom" : "universal",
       "scale" : "3x"
     }

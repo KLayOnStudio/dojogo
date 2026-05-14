@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "SukuraLoading5.png",
+      "filename" : "SpeechBubble.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "SukuraLoading_540_5.png",
+      "filename" : "SpeechBubble 1.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "SukuraLoading_720_5.png",
+      "filename" : "SpeechBubble 2.png",
       "idiom" : "universal",
       "scale" : "3x"
     }

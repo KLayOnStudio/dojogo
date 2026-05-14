@@ -146,6 +146,7 @@ class APIService: ObservableObject {
             let kendoExperienceYears: Int?
             let kendoExperienceMonths: Int?
             let homeDojo: String?
+            let avatar: String?
             let email: String
             let streak: Int
             let totalCount: Int
@@ -168,6 +169,7 @@ class APIService: ObservableObject {
         user.kendoExperienceYears = userResponse.kendoExperienceYears ?? 0
         user.kendoExperienceMonths = userResponse.kendoExperienceMonths ?? 0
         user.homeDojo = userResponse.homeDojo
+        user.avatar = userResponse.avatar ?? "kendoka"
         user.streak = userResponse.streak
         user.totalCount = userResponse.totalCount
         user.createdAt = userResponse.createdAt != nil ? Date(timeIntervalSince1970: TimeInterval(userResponse.createdAt!)) : Date()
@@ -522,7 +524,7 @@ class APIService: ObservableObject {
         return user
     }
 
-    func updateProfile(nickname: String?, kendoRank: KendoRank?, experienceYears: Int?, experienceMonths: Int?, homeDojo: String? = nil, isPublic: Bool? = nil) async throws -> User {
+    func updateProfile(nickname: String?, kendoRank: KendoRank?, experienceYears: Int?, experienceMonths: Int?, homeDojo: String? = nil, isPublic: Bool? = nil, avatar: String? = nil) async throws -> User {
         let url = URL(string: "\(baseURL)/UpdateProfile")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -548,6 +550,9 @@ class APIService: ObservableObject {
         }
         if let isPublic = isPublic {
             body["isPublic"] = isPublic
+        }
+        if let avatar = avatar {
+            body["avatar"] = avatar
         }
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -590,6 +595,7 @@ class APIService: ObservableObject {
             let kendoExperienceYears: Int?
             let kendoExperienceMonths: Int?
             let homeDojo: String?
+            let avatar: String?
             let email: String
             let streak: Int
             let totalCount: Int
@@ -616,6 +622,7 @@ class APIService: ObservableObject {
         user.kendoExperienceYears = userResponse.kendoExperienceYears ?? 0
         user.kendoExperienceMonths = userResponse.kendoExperienceMonths ?? 0
         user.homeDojo = userResponse.homeDojo
+        user.avatar = userResponse.avatar ?? "kendoka"
         user.streak = userResponse.streak
         user.totalCount = userResponse.totalCount
         user.createdAt = userResponse.createdAt != nil ? Date(timeIntervalSince1970: TimeInterval(userResponse.createdAt!)) : Date()

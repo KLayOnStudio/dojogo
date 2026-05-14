@@ -7,6 +7,7 @@ struct AppNotification: Codable, Identifiable {
     let body: String
     let isRead: Bool
     let createdAt: Date?
+    let senderAvatar: String?
 }
 
 struct NotificationsResponse: Codable {
