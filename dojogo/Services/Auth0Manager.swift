@@ -154,7 +154,7 @@ class Auth0Manager: ObservableObject {
         return try await withCheckedThrowingContinuation { continuation in
             Auth0
                 .webAuth()
-                .clearSession(federated: true) { result in
+                .clearSession(federated: false) { result in
                     switch result {
                     case .success:
                         Task { @MainActor in
