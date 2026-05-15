@@ -20,6 +20,7 @@ struct FriendInsightsView: View {
                                 .font(.pixelifyButton)
                                 .foregroundColor(.white)
                         }
+                        .buttonStyle(PixelButtonStyle())
 
                         Spacer()
 

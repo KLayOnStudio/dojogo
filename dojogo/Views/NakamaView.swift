@@ -19,6 +19,7 @@ struct NakamaView: View {
                                 .font(.pixelifyButton)
                                 .foregroundColor(.white)
                         }
+                        .buttonStyle(PixelButtonStyle())
 
                         Spacer()
 

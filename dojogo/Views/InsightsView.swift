@@ -27,6 +27,7 @@ struct InsightsView: View {
                                 .font(.pixelifyButton)
                                 .foregroundColor(.white)
                         }
+                        .buttonStyle(PixelButtonStyle())
 
                         Spacer()
 

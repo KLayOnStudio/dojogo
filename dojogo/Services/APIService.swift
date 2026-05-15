@@ -654,6 +654,19 @@ class APIService: ObservableObject {
         })
     }
 
+    func getAudioManifest() async throws -> [AudioAsset] {
+        let url = URL(string: "\(baseURL)/GetAudioManifest")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+        struct ManifestResponse: Codable { let assets: [AudioAsset] }
+        return try configuredDecoder().decode(ManifestResponse.self, from: data).assets
+    }
+
     func getAnnouncements() async throws -> [Announcement] {
         let url = URL(string: "\(baseURL)/GetAnnouncements")!
         var request = URLRequest(url: url)
@@ -682,11 +695,15 @@ class APIService: ObservableObject {
         return try configuredDecoder().decode(NotificationsResponse.self, from: data)
     }
 
-    func markNotificationsRead() async throws {
+    func markNotificationsRead(ids: [Int]? = nil) async throws {
         let url = URL(string: "\(baseURL)/MarkNotificationsRead")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         try await addAuthHeaders(to: &request)
+        if let ids = ids {
+            request.httpBody = try JSONSerialization.data(withJSONObject: ["notificationIds": ids])
+        }
         _ = try await URLSession.shared.data(for: request)
     }
 

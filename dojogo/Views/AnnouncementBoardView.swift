@@ -17,6 +17,7 @@ struct AnnouncementBoardView: View {
                             .font(.pixelifyButton)
                             .foregroundColor(.white)
                     }
+                    .buttonStyle(PixelButtonStyle())
                     Spacer()
                     Text("ANNOUNCEMENTS")
                         .font(.pixelifyHeadline)

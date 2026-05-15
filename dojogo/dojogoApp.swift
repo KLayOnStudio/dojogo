@@ -12,6 +12,9 @@ struct dojogoApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .task {
+                    await AudioService.shared.syncManifest()
+                }
         }
     }
 }

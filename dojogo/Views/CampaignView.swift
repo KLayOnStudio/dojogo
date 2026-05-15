@@ -96,6 +96,7 @@ struct CampaignView: View {
                             .font(.pixelifyButton)
                             .foregroundColor(.white)
                     }
+                    .buttonStyle(PixelButtonStyle())
                     Spacer()
                     Text("CAMPAIGN")
                         .font(.pixelifyHeadline)
@@ -127,30 +128,11 @@ struct CampaignView: View {
                         VStack(spacing: 0) {
                             heroSection
 
-                            if status != .ended {
+                            // Non-participants see SIGN UP above the leaderboard
+                            if status != .ended && !isParticipant {
                                 joinSection
                                     .padding(.horizontal, 20)
-                                    .padding(.bottom, isParticipant ? 8 : 20)
-
-                                if isParticipant {
-                                    Button(action: { showInvite = true }) {
-                                        HStack(spacing: 6) {
-                                            Image(systemName: "person.2.fill")
-                                                .font(.system(size: 12))
-                                            Text("INVITE NAKAMA")
-                                                .font(.pixelifySmall)
-                                        }
-                                        .foregroundColor(.cyan)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 10)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 0)
-                                                .stroke(Color.cyan.opacity(0.5), lineWidth: 1)
-                                        )
-                                    }
-                                    .padding(.horizontal, 20)
                                     .padding(.bottom, 20)
-                                }
                             }
 
                             Divider()
@@ -158,7 +140,39 @@ struct CampaignView: View {
                                 .padding(.horizontal, 20)
 
                             leaderboardSection
+
+                            // Participants see YOU'RE IN + INVITE below the leaderboard
+                            if status != .ended && isParticipant {
+                                Divider()
+                                    .background(Color.white.opacity(0.15))
+                                    .padding(.horizontal, 20)
+                                    .padding(.top, 8)
+
+                                joinSection
+                                    .padding(.horizontal, 20)
+                                    .padding(.top, 16)
+                                    .padding(.bottom, 12)
+
+                                Button(action: { showInvite = true }) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "person.2.fill")
+                                            .font(.system(size: 12))
+                                        Text("INVITE NAKAMA")
+                                            .font(.pixelifySmall)
+                                    }
+                                    .foregroundColor(.cyan)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 0)
+                                            .stroke(Color.cyan.opacity(0.5), lineWidth: 1)
+                                    )
+                                }
+                                .padding(.horizontal, 20)
                                 .padding(.bottom, 40)
+                            } else {
+                                Spacer().frame(height: 40)
+                            }
                         }
                     }
                 }

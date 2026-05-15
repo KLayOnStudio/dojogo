@@ -17,6 +17,7 @@ struct AboutView: View {
                                 .font(.pixelifyButton)
                                 .foregroundColor(.white)
                         }
+                        .buttonStyle(PixelButtonStyle())
 
                         Spacer()
 

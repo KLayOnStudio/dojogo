@@ -8,7 +8,11 @@ struct StageNodeView: View {
 
     @State private var pulseScale: CGFloat = 1.0
 
-    private var progress: Double { stage.progress(swings: swings) }
+    private let size: CGFloat = 77
+
+    private var rawProgress: Double {
+        min(Double(swings) / Double(stage.swingsRequired), 1.0)
+    }
     private var isCompleted: Bool { stage.isCompleted(swings: swings) }
     private var isCurrent: Bool { isUnlocked && !isCompleted }
 
@@ -16,53 +20,51 @@ struct StageNodeView: View {
         Button(action: onTap) {
             VStack(spacing: 6) {
                 ZStack {
-                    // Torii gate icon
+                    // Base: faded gate (transparent look when locked/in-progress)
                     Image("toriiGate")
                         .interpolation(.none)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 77, height: 77)
-                        .saturation(isUnlocked ? 1.0 : 0.5)
-                        .opacity(isUnlocked ? 1.0 : 0.8)
+                        .frame(width: size, height: size)
+                        .saturation(isUnlocked ? 0.3 : 0.2)
+                        .opacity(isUnlocked ? 0.45 : 0.35)
 
-                    // Progress reveal (bottom-up)
-                    if isUnlocked && progress > 0 {
-                        VStack(spacing: 0) {
-                            Spacer()
-                            Rectangle()
-                                .fill(isCompleted ? Color.yellow : Color.white)
-                                .frame(height: 77 * progress)
-                        }
-                        .frame(width: 77, height: 77)
-                        .clipped()
-                        .mask(
-                            Image("toriiGate")
-                                .interpolation(.none)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 77, height: 77)
-                        )
+                    // Overlay: full-color gate filled from bottom by progress
+                    if isUnlocked && rawProgress > 0 {
+                        Image("toriiGate")
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: size, height: size)
+                            .mask(
+                                VStack(spacing: 0) {
+                                    Color.clear
+                                        .frame(height: size * (1.0 - rawProgress))
+                                    Color.black
+                                        .frame(height: size * rawProgress)
+                                }
+                            )
                     }
 
                     if isCompleted {
                         Image(systemName: "checkmark")
                             .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.black)
+                            .foregroundColor(.yellow)
+                            .shadow(color: .black, radius: 2, x: 0, y: 1)
                     }
                 }
-                .frame(width: 77, height: 77)
+                .frame(width: size, height: size)
                 .scaleEffect(pulseScale)
 
                 // Progress count
                 if isUnlocked {
-                    Text("\(swings)/\(stage.swingsRequired)")
+                    Text("\(min(swings, stage.swingsRequired))/\(stage.swingsRequired)")
                         .font(.pixelify(size: 11, weight: .bold))
                         .foregroundColor(isCompleted ? .yellow : .white)
                         .shadow(color: .black, radius: 2, x: 0, y: 1)
                 }
             }
         }
-        // Always tappable (locked stages show locked bubble)
         .onAppear {
             if isCurrent {
                 withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {

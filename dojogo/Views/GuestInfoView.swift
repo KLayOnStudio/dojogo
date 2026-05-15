@@ -22,6 +22,7 @@ struct GuestInfoView: View {
                                 .font(.pixelifyButton)
                                 .foregroundColor(.white)
                         }
+                        .buttonStyle(PixelButtonStyle())
                         Spacer()
                     }
                     .padding(.horizontal, 20)

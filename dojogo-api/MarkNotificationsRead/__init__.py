@@ -17,10 +17,25 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     try:
         user_id = req.user_id
 
-        execute_query(
-            "UPDATE notifications SET is_read = TRUE WHERE user_id = %s AND is_read = FALSE",
-            (user_id,)
-        )
+        body = {}
+        try:
+            body = req.get_json(silent=True) or {}
+        except Exception:
+            pass
+
+        notification_ids = body.get("notificationIds")
+
+        if notification_ids and isinstance(notification_ids, list) and len(notification_ids) > 0:
+            placeholders = ", ".join(["%s"] * len(notification_ids))
+            execute_query(
+                f"UPDATE notifications SET is_read = TRUE WHERE user_id = %s AND id IN ({placeholders}) AND is_read = FALSE",
+                (user_id, *notification_ids)
+            )
+        else:
+            execute_query(
+                "UPDATE notifications SET is_read = TRUE WHERE user_id = %s AND is_read = FALSE",
+                (user_id,)
+            )
 
         return func.HttpResponse(
             json.dumps({"message": "Marked as read"}),

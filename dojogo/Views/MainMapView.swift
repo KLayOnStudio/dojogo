@@ -318,6 +318,7 @@ struct MainMapView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
                         }
+                        .buttonStyle(PixelButtonStyle())
 
                         if !authViewModel.isGuest {
                             // Insights Button
@@ -336,6 +337,7 @@ struct MainMapView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
                             }
+                            .buttonStyle(PixelButtonStyle())
 
                             // Leaderboard Button
                             Button(action: {
@@ -353,6 +355,7 @@ struct MainMapView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
                             }
+                            .buttonStyle(PixelButtonStyle())
 
                             // Nakama Button
                             Button(action: {
@@ -370,6 +373,7 @@ struct MainMapView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
                             }
+                            .buttonStyle(PixelButtonStyle())
 
                             // Profile Button
                             Button(action: {
@@ -387,6 +391,7 @@ struct MainMapView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
                             }
+                            .buttonStyle(PixelButtonStyle())
                         }
                     }
                     .frame(maxWidth: .infinity)
