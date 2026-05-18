@@ -347,58 +347,81 @@ struct NakamaView: View {
             }
 
             ForEach(viewModel.friends) { friend in
-                Button(action: { selectedFriend = friend }) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(friend.displayName)
-                                .font(.pixelifyBody)
-                                .foregroundColor(.white)
-
-                            if let rank = friend.kendoRank {
-                                Text(rank)
-                                    .font(.pixelify(size: 10))
-                                    .foregroundColor(.gray)
-                            }
-                        }
-
-                        Spacer()
-
-                        VStack(alignment: .trailing, spacing: 4) {
-                            HStack(spacing: 8) {
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    Text("\(friend.streak)")
-                                        .font(.pixelify(size: 14, weight: .bold))
-                                        .foregroundColor(.orange)
-                                    Text("STREAK")
-                                        .font(.pixelify(size: 8))
-                                        .foregroundColor(.gray)
-                                }
-
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    Text("\(friend.totalCount)")
-                                        .font(.pixelify(size: 14, weight: .bold))
-                                        .foregroundColor(.green)
-                                    Text("SWINGS")
-                                        .font(.pixelify(size: 8))
-                                        .foregroundColor(.gray)
-                                }
-                            }
-                        }
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray.opacity(0.5))
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(Color.gray.opacity(0.15))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 0)
-                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
+                NakamaFriendRow(friend: friend, onTap: { selectedFriend = friend })
             }
         }
+    }
+}
+
+private struct NakamaFriendRow: View {
+    let friend: FriendInfo
+    let onTap: () -> Void
+    @State private var showComingSoon = false
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(friend.displayName)
+                        .font(.pixelifyBody)
+                        .foregroundColor(.white)
+
+                    if let rank = friend.kendoRank {
+                        Text(rank)
+                            .font(.pixelify(size: 10))
+                            .foregroundColor(.gray)
+                    }
+                }
+
+                Spacer()
+
+                HStack(spacing: 8) {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(friend.streak)")
+                            .font(.pixelify(size: 14, weight: .bold))
+                            .foregroundColor(.orange)
+                        Text("STREAK")
+                            .font(.pixelify(size: 8))
+                            .foregroundColor(.gray)
+                    }
+
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(friend.totalCount)")
+                            .font(.pixelify(size: 14, weight: .bold))
+                            .foregroundColor(.green)
+                        Text("SWINGS")
+                            .font(.pixelify(size: 8))
+                            .foregroundColor(.gray)
+                    }
+                }
+
+                Button(action: { showComingSoon = true }) {
+                    Image("nakamaIcon")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20, height: 20)
+                        .opacity(0.35)
+                }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $showComingSoon) {
+                    PixelAnnouncementSheet(
+                        title: "COMING SOON",
+                        message: "Poke & messages are coming in the next version!"
+                    )
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray.opacity(0.5))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color.gray.opacity(0.15))
+            .overlay(
+                RoundedRectangle(cornerRadius: 0)
+                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }

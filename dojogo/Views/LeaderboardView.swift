@@ -249,6 +249,7 @@ struct LeaderboardRow: View {
     let user: LeaderboardUser
     let type: LeaderboardView.LeaderboardType
     let isCurrentUser: Bool
+    @State private var showComingSoon = false
 
     private var rankColor: Color {
         switch user.rank {
@@ -301,6 +302,23 @@ struct LeaderboardRow: View {
                 Text(type == .totalSwings ? "SWINGS" : "DAYS")
                     .font(.pixelify(size: 10))
                     .foregroundColor(.gray)
+            }
+
+            if !isCurrentUser {
+                Button(action: { showComingSoon = true }) {
+                    Image("nakamaIcon")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20, height: 20)
+                        .opacity(0.35)
+                }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $showComingSoon) {
+                    PixelAnnouncementSheet(
+                        title: "COMING SOON",
+                        message: "Poke & messages are coming in the next version!"
+                    )
+                }
             }
         }
         .padding(.horizontal, 16)

@@ -10,16 +10,7 @@ struct AuthView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Background gradient
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [Color.blue.opacity(0.3), .white]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .ignoresSafeArea()
+                Color(red: 0.1, green: 0.12, blue: 0.2).ignoresSafeArea()
 
                 // Animated background
                 Image(frames[frameIndex])

@@ -11,10 +11,16 @@ struct InboxView: View {
     @State private var notifications: [AppNotification] = []
     @State private var checkedIds: Set<Int> = []
     @State private var isLoading = true
+    @State private var selectedTab: InboxTab = .all
+
+    enum InboxTab { case all, messages, notices }
 
     private func effectivelyRead(_ n: AppNotification) -> Bool { n.isRead || checkedIds.contains(n.id) }
     private var unread: [AppNotification] { notifications.filter { !effectivelyRead($0) } }
     private var read: [AppNotification]   { notifications.filter {  effectivelyRead($0) } }
+
+    private var showNotifications: Bool { selectedTab == .all || selectedTab == .messages }
+    private var showAnnouncements: Bool { selectedTab == .all || selectedTab == .notices }
 
     var body: some View {
         ZStack {
@@ -45,6 +51,28 @@ struct InboxView: View {
 
                 Divider().background(Color.white.opacity(0.1))
 
+                // Tab bar
+                HStack(spacing: 0) {
+                    ForEach([("ALL", InboxTab.all), ("MESSAGES", .messages), ("NOTICES", .notices)], id: \.0) { label, tab in
+                        Button(action: { selectedTab = tab }) {
+                            VStack(spacing: 4) {
+                                Text(label)
+                                    .font(.pixelify(size: 10, weight: .bold))
+                                    .foregroundColor(selectedTab == tab ? .white : .white.opacity(0.35))
+                                Rectangle()
+                                    .fill(selectedTab == tab ? (tab == .notices ? brandGreen : brandPurple) : Color.clear)
+                                    .frame(height: 2)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                        }
+                        .buttonStyle(PixelButtonStyle())
+                    }
+                }
+                .background(Color.white.opacity(0.04))
+
+                Divider().background(Color.white.opacity(0.1))
+
                 if isLoading {
                     Spacer()
                     ProgressView()
@@ -60,40 +88,59 @@ struct InboxView: View {
                     ScrollView {
                         VStack(spacing: 0) {
 
-                            // Unread notifications — purple accent
-                            if !unread.isEmpty {
-                                SectionHeader(title: "NEW", color: brandPurple)
-                                VStack(spacing: 10) {
-                                    ForEach(unread) { n in
-                                        NotificationCard(notification: n, checkedIds: $checkedIds, onOpenCampaign: n.type == "campaign_invite" ? onOpenCampaign : nil)
+                            if showNotifications {
+                                // Unread notifications — purple accent
+                                if !unread.isEmpty {
+                                    SectionHeader(title: "NEW", color: brandPurple)
+                                    VStack(spacing: 10) {
+                                        ForEach(unread) { n in
+                                            NotificationCard(notification: n, checkedIds: $checkedIds, onOpenCampaign: n.type == "campaign_invite" ? onOpenCampaign : nil)
+                                        }
                                     }
+                                    .padding(.horizontal, 16)
+                                    .padding(.bottom, 20)
                                 }
-                                .padding(.horizontal, 16)
-                                .padding(.bottom, 20)
+
+                                // Read notifications — muted
+                                if !read.isEmpty {
+                                    SectionHeader(title: unread.isEmpty ? "MESSAGES" : "EARLIER", color: .white.opacity(0.35))
+                                    VStack(spacing: 8) {
+                                        ForEach(read) { n in
+                                            NotificationCard(notification: n, checkedIds: $checkedIds, onOpenCampaign: n.type == "campaign_invite" ? onOpenCampaign : nil)
+                                        }
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.bottom, 20)
+                                }
+
+                                if notifications.isEmpty {
+                                    Spacer().frame(height: 20)
+                                    Text("No messages yet.")
+                                        .font(.pixelifyBody)
+                                        .foregroundColor(.gray)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.bottom, 20)
+                                }
                             }
 
-                            // Read notifications — muted
-                            if !read.isEmpty {
-                                SectionHeader(title: unread.isEmpty ? "MESSAGES" : "EARLIER", color: .white.opacity(0.35))
-                                VStack(spacing: 8) {
-                                    ForEach(read) { n in
-                                        NotificationCard(notification: n, checkedIds: $checkedIds, onOpenCampaign: n.type == "campaign_invite" ? onOpenCampaign : nil)
+                            if showAnnouncements {
+                                // Announcements — green accent
+                                if !announcements.isEmpty {
+                                    SectionHeader(title: "NOTICES", color: brandGreen)
+                                    VStack(spacing: 10) {
+                                        ForEach(announcements) { a in
+                                            AnnouncementCard(announcement: a)
+                                        }
                                     }
+                                    .padding(.horizontal, 16)
+                                    .padding(.bottom, 32)
+                                } else {
+                                    Spacer().frame(height: 20)
+                                    Text("No notices yet.")
+                                        .font(.pixelifyBody)
+                                        .foregroundColor(.gray)
+                                        .frame(maxWidth: .infinity)
                                 }
-                                .padding(.horizontal, 16)
-                                .padding(.bottom, 20)
-                            }
-
-                            // Announcements — green accent
-                            if !announcements.isEmpty {
-                                SectionHeader(title: "NOTICES", color: brandGreen)
-                                VStack(spacing: 10) {
-                                    ForEach(announcements) { a in
-                                        AnnouncementCard(announcement: a)
-                                    }
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.bottom, 32)
                             }
                         }
                         .padding(.top, 8)
@@ -115,6 +162,8 @@ struct InboxView: View {
         if let newest = announcements.first {
             LocalStorageService.shared.saveLastSeenAnnouncementId(newest.id)
         }
+        let ids = announcements.map { $0.id }
+        Task { try? await APIService.shared.logAnnouncementViews(ids: ids) }
         isLoading = false
     }
 
@@ -211,16 +260,46 @@ private struct NotificationCard: View {
                     .foregroundColor(bodyColor)
                     .fixedSize(horizontal: false, vertical: true)
 
-                if let date = notification.createdAt {
-                    Text(date.formatted(.dateTime.month(.abbreviated).day()))
-                        .font(.pixelify(size: 9))
-                        .foregroundColor(.gray.opacity(isUnread ? 0.9 : 0.45))
-                        .padding(.top, 2)
+                HStack(alignment: .bottom) {
+                    if let date = notification.createdAt {
+                        Text(date.formatted(.dateTime.month(.abbreviated).day()))
+                            .font(.pixelify(size: 9))
+                            .foregroundColor(.gray.opacity(isUnread ? 0.9 : 0.45))
+                            .padding(.top, 6)
+                    }
+                    Spacer()
+                    if notification.type == "campaign_invite" && onOpenCampaign != nil {
+                        Text("▶")
+                            .font(.pixelify(size: 10))
+                            .foregroundColor(isUnread ? .white.opacity(0.6) : .white.opacity(0.2))
+                    }
+                    Button(action: {
+                        if notification.isRead { return }
+                        if isChecked { checkedIds.remove(notification.id) }
+                        else { checkedIds.insert(notification.id) }
+                    }) {
+                        ZStack {
+                            Rectangle()
+                                .fill(Color.black.opacity(0.3))
+                                .frame(width: 20, height: 20)
+                            Rectangle()
+                                .stroke(isUnread ? brandPurple : Color.white.opacity(0.3), lineWidth: 2)
+                                .frame(width: 20, height: 20)
+                            if isChecked || notification.isRead {
+                                Rectangle()
+                                    .fill(notification.isRead ? Color.white.opacity(0.3) : brandPurple)
+                                    .frame(width: 12, height: 12)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(notification.isRead)
                 }
+                .padding(.top, 4)
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 16)
             .padding(.top, 14)
-            .padding(.bottom, 22)
+            .padding(.bottom, 18)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(bgColor)
             .overlay(
@@ -236,37 +315,6 @@ private struct NotificationCard: View {
                     .frame(width: 7, height: 7)
                     .offset(x: -8, y: 8)
             }
-
-            // Bottom-right: checkbox (and campaign tap indicator)
-            HStack(spacing: 6) {
-                if notification.type == "campaign_invite" && onOpenCampaign != nil {
-                    Text("▶")
-                        .font(.pixelify(size: 10))
-                        .foregroundColor(isUnread ? .white.opacity(0.6) : .white.opacity(0.2))
-                }
-                // Pixel checkbox
-                Button(action: {
-                    if notification.isRead { return }
-                    if isChecked { checkedIds.remove(notification.id) }
-                    else { checkedIds.insert(notification.id) }
-                }) {
-                    ZStack {
-                        Rectangle()
-                            .stroke(isUnread ? brandPurple.opacity(0.6) : Color.white.opacity(0.15), lineWidth: 1.5)
-                            .frame(width: 12, height: 12)
-                        if isChecked || notification.isRead {
-                            Rectangle()
-                                .fill(notification.isRead ? Color.white.opacity(0.15) : brandPurple)
-                                .frame(width: 7, height: 7)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .disabled(notification.isRead)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-            .padding(.trailing, 10)
-            .padding(.bottom, 9)
         }
     }
 }

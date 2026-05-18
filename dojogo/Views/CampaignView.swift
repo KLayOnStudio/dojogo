@@ -9,6 +9,7 @@ struct CampaignView: View {
     @State private var showRules = false
     @State private var showInvite = false
     @State private var pendingRequestIds: Set<String> = []   // optimistic UI
+    @State private var showPokeSheet = false
 
     // Sprite animation
     @State private var frameIndex = 0
@@ -385,6 +386,18 @@ struct CampaignView: View {
                 .font(.pixelify(size: 11, weight: .bold))
                 .foregroundColor(entry.isMe ? .yellow : .green)
                 .frame(width: 58, alignment: .trailing)
+
+            if !entry.isMe {
+                Button(action: { showPokeSheet = true }) {
+                    Image("nakamaIcon")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 18, height: 18)
+                        .opacity(0.35)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 8)
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
@@ -395,6 +408,12 @@ struct CampaignView: View {
                 .frame(height: 1),
             alignment: .bottom
         )
+        .sheet(isPresented: $showPokeSheet) {
+            PixelAnnouncementSheet(
+                title: "COMING SOON",
+                message: "Poke & messages are coming in the next version!"
+            )
+        }
     }
 
     // MARK: - Pre-start participant row (no scores, nakama button)

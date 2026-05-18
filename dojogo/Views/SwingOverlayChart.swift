@@ -14,13 +14,16 @@ struct SwingOverlayChart: View {
     let color: Color
     let valueExtractor: (IMUSample) -> Float
 
+    @State private var cachedSwingData: [[DataPoint]] = []
+    @State private var cachedAverage: [DataPoint] = []
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.pixelifyBodyBold)
                 .foregroundColor(.white)
 
-            if swingData.isEmpty {
+            if cachedSwingData.isEmpty {
                 Text("No swing data")
                     .font(.pixelifySmall)
                     .foregroundColor(.gray)
@@ -28,9 +31,10 @@ struct SwingOverlayChart: View {
                     .frame(maxWidth: .infinity)
             } else {
                 Chart {
-                    // Individual swings at low opacity
-                    ForEach(swingData.indices, id: \.self) { swingIndex in
-                        let swing = swingData[swingIndex]
+                    // Individual swings at low opacity — evenly sampled, max 10
+                    ForEach(sampledIndices.indices, id: \.self) { i in
+                        let swingIndex = sampledIndices[i]
+                        let swing = cachedSwingData[swingIndex]
                         ForEach(swing.indices, id: \.self) { pointIndex in
                             let point = swing[pointIndex]
                             LineMark(
@@ -44,8 +48,8 @@ struct SwingOverlayChart: View {
                     }
 
                     // Average swing at full opacity
-                    ForEach(averageSwing.indices, id: \.self) { i in
-                        let point = averageSwing[i]
+                    ForEach(cachedAverage.indices, id: \.self) { i in
+                        let point = cachedAverage[i]
                         LineMark(
                             x: .value("Time", point.time),
                             y: .value(unit, point.value),
@@ -72,6 +76,7 @@ struct SwingOverlayChart: View {
                     }
                 }
                 .chartLegend(.hidden)
+                .drawingGroup()
                 .frame(height: 160)
                 .padding(12)
                 .background(Color.gray.opacity(0.15))
@@ -81,6 +86,17 @@ struct SwingOverlayChart: View {
                 )
             }
         }
+        .task {
+            let data = computeSwingData()
+            cachedSwingData = data
+            cachedAverage = computeAverage(from: data)
+        }
+    }
+
+    private var sampledIndices: [Int] {
+        let count = cachedSwingData.count
+        guard count > 10 else { return Array(0..<count) }
+        return (0..<10).map { i in Int(Double(i) / 9.0 * Double(count - 1)) }
     }
 
     // MARK: - Data Processing
@@ -90,7 +106,7 @@ struct SwingOverlayChart: View {
         let value: Double
     }
 
-    private var swingData: [[DataPoint]] {
+    private func computeSwingData() -> [[DataPoint]] {
         segments.compactMap { segment -> [DataPoint]? in
             guard segment.startIndex >= 0, segment.endIndex < samples.count else { return nil }
             let swingSamples = Array(samples[segment.startIndex...segment.endIndex])
@@ -105,8 +121,7 @@ struct SwingOverlayChart: View {
         }
     }
 
-    private var averageSwing: [DataPoint] {
-        let allSwings = swingData
+    private func computeAverage(from allSwings: [[DataPoint]]) -> [DataPoint] {
         guard !allSwings.isEmpty else { return [] }
 
         // Resample all swings to a fixed number of points
@@ -115,7 +130,6 @@ struct SwingOverlayChart: View {
             resample(swing.map { $0.value }, to: resampleCount)
         }
 
-        // Find the average duration across all swings
         let avgDuration = allSwings.map { $0.last?.time ?? 0 }.reduce(0, +) / Double(allSwings.count)
 
         // Average each point

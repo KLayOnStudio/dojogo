@@ -667,6 +667,17 @@ class APIService: ObservableObject {
         return try configuredDecoder().decode(ManifestResponse.self, from: data).assets
     }
 
+    func logAnnouncementViews(ids: [Int]) async throws {
+        guard !ids.isEmpty else { return }
+        let url = URL(string: "\(baseURL)/LogAnnouncementViews")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        try await addAuthHeaders(to: &request)
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["announcementIds": ids])
+        _ = try? await URLSession.shared.data(for: request)
+    }
+
     func getAnnouncements() async throws -> [Announcement] {
         let url = URL(string: "\(baseURL)/GetAnnouncements")!
         var request = URLRequest(url: url)

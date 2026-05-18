@@ -122,7 +122,16 @@ CREATE TABLE IF NOT EXISTS notifications (
     INDEX idx_user_read (user_id, is_read)
 );
 
--- 013: Audio assets manifest (remote BGM and SFX, updatable without app release)
+-- 013: Announcement views tracking
+CREATE TABLE IF NOT EXISTS announcement_views (
+    user_id VARCHAR(255) NOT NULL,
+    announcement_id INT NOT NULL,
+    viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, announcement_id),
+    INDEX idx_announcement (announcement_id)
+);
+
+-- 014: Audio assets manifest (remote BGM and SFX, updatable without app release)
 CREATE TABLE IF NOT EXISTS audio_assets (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
