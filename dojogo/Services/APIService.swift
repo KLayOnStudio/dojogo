@@ -228,6 +228,9 @@ class APIService: ObservableObject {
         if let stageId = session.stageId {
             body["stageId"] = stageId
         }
+        if let deviceModel = session.deviceModel {
+            body["deviceModel"] = deviceModel
+        }
         if let stats = stats {
             if let v = stats.tempo { body["tempo"] = v }
             if let v = stats.avgSpeed { body["avgSpeed"] = v }
@@ -329,7 +332,7 @@ class APIService: ObservableObject {
 
     // MARK: - Session Data Upload
 
-    func uploadSessionData(sessionId: UUID, imuSamples: [IMUSample], cueEvents: [CueEvent]) async throws {
+    func uploadSessionData(sessionId: UUID, imuSamples: [IMUSample], cueEvents: [CueEvent], deviceModel: String?, sensorMode: SensorMode) async throws {
         let url = URL(string: "\(baseURL)/uploadsessiondata")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -345,11 +348,15 @@ class APIService: ObservableObject {
         let imuArray = try JSONSerialization.jsonObject(with: imuData)
         let cueArray = try JSONSerialization.jsonObject(with: cueData)
 
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "sessionId": sessionId.uuidString,
+            "sensorMode": sensorMode.rawValue,
             "imuSamples": imuArray,
             "cueEvents": cueArray
         ]
+        if let deviceModel = deviceModel {
+            body["deviceModel"] = deviceModel
+        }
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 

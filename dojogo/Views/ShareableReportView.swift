@@ -79,7 +79,8 @@ struct ShareableReportView: View {
                     title: "SWING SPEED (gx)",
                     unit: "rad/s",
                     color: .cyan,
-                    valueExtractor: { $0.gx }
+                    valueExtractor: { $0.gx },
+                    synchronous: true
                 )
 
                 SwingOverlayChart(
@@ -88,7 +89,8 @@ struct ShareableReportView: View {
                     title: "SWING FORCE (ay)",
                     unit: "m/s²",
                     color: .yellow,
-                    valueExtractor: { $0.ay }
+                    valueExtractor: { $0.ay },
+                    synchronous: true
                 )
             }
 

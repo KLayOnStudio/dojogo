@@ -46,8 +46,9 @@ struct Session: Codable, Identifiable {
     let mode: SessionMode
     let stageId: Int?
     let sensorMode: SensorMode
+    let deviceModel: String?
 
-    init(userId: String, swingCount: Int, startTime: Date, endTime: Date, mode: SessionMode = .guided, stageId: Int? = nil, sensorMode: SensorMode = .phone) {
+    init(userId: String, swingCount: Int, startTime: Date, endTime: Date, mode: SessionMode = .guided, stageId: Int? = nil, sensorMode: SensorMode = .phone, deviceModel: String? = nil) {
         self.id = UUID()
         self.userId = userId
         self.date = startTime
@@ -58,10 +59,11 @@ struct Session: Codable, Identifiable {
         self.mode = mode
         self.stageId = stageId
         self.sensorMode = sensorMode
+        self.deviceModel = deviceModel
     }
 
     /// Init for server-fetched sessions (known id, date + duration only)
-    init(id: UUID, userId: String, date: Date, swingCount: Int, duration: TimeInterval, mode: SessionMode = .guided, stageId: Int? = nil, sensorMode: SensorMode = .phone) {
+    init(id: UUID, userId: String, date: Date, swingCount: Int, duration: TimeInterval, mode: SessionMode = .guided, stageId: Int? = nil, sensorMode: SensorMode = .phone, deviceModel: String? = nil) {
         self.id = id
         self.userId = userId
         self.date = date
@@ -72,6 +74,7 @@ struct Session: Codable, Identifiable {
         self.mode = mode
         self.stageId = stageId
         self.sensorMode = sensorMode
+        self.deviceModel = deviceModel
     }
 
     init(from decoder: Decoder) throws {
@@ -92,6 +95,7 @@ struct Session: Codable, Identifiable {
         mode = (try? container.decode(SessionMode.self, forKey: .mode)) ?? .guided
         stageId = try container.decodeIfPresent(Int.self, forKey: .stageId)
         sensorMode = (try? container.decode(SensorMode.self, forKey: .sensorMode)) ?? .phone
+        deviceModel = try container.decodeIfPresent(String.self, forKey: .deviceModel)
     }
 
     private enum LegacyCodingKeys: String, CodingKey {
@@ -99,7 +103,7 @@ struct Session: Codable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, userId, date, swingCount, duration, startTime, endTime, mode, stageId, sensorMode
+        case id, userId, date, swingCount, duration, startTime, endTime, mode, stageId, sensorMode, deviceModel
     }
 
     func encode(to encoder: Encoder) throws {
@@ -114,5 +118,6 @@ struct Session: Codable, Identifiable {
         try container.encode(mode, forKey: .mode)
         try container.encodeIfPresent(stageId, forKey: .stageId)
         try container.encode(sensorMode, forKey: .sensorMode)
+        try container.encodeIfPresent(deviceModel, forKey: .deviceModel)
     }
 }

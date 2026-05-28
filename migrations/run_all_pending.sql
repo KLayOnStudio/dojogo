@@ -131,6 +131,26 @@ CREATE TABLE IF NOT EXISTS announcement_views (
     INDEX idx_announcement (announcement_id)
 );
 
+-- 015: Raw IMU + cue event data per session (for ML training)
+-- imu_json/cue_events_json are campaign backup; blob_url is primary long-term storage
+CREATE TABLE IF NOT EXISTS session_data (
+    session_id VARCHAR(36) NOT NULL PRIMARY KEY,
+    blob_url VARCHAR(500) DEFAULT NULL,
+    imu_json MEDIUMTEXT DEFAULT NULL,
+    cue_events_json TEXT DEFAULT NULL,
+    sample_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_sample_count (sample_count)
+);
+
+-- 016: Device model for mount-mode sessions
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sessions' AND COLUMN_NAME = 'device_model');
+SET @stmt = IF(@col_exists = 0,
+    'ALTER TABLE sessions ADD COLUMN device_model VARCHAR(50) DEFAULT NULL',
+    'SELECT 1');
+PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;
+
 -- 014: Audio assets manifest (remote BGM and SFX, updatable without app release)
 CREATE TABLE IF NOT EXISTS audio_assets (
     id INT AUTO_INCREMENT PRIMARY KEY,

@@ -184,7 +184,8 @@ class GameViewModel: ObservableObject {
             endTime: endTime,
             mode: isGuidedMode ? .guided : .free,
             stageId: currentStageId,
-            sensorMode: sensorMode
+            sensorMode: sensorMode,
+            deviceModel: sensorMode == .mount ? Self.deviceModelIdentifier() : nil
         )
 
         currentSession = session
@@ -222,5 +223,15 @@ class GameViewModel: ObservableObject {
     private func saveSessionLocally(_ session: Session) {
         LocalStorageService.shared.saveSession(session)
         print("Session saved locally: \(session)")
+    }
+
+    private static func deviceModelIdentifier() -> String {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        return withUnsafePointer(to: &systemInfo.machine) {
+            $0.withMemoryRebound(to: CChar.self, capacity: 1) {
+                String(validatingUTF8: $0) ?? "unknown"
+            }
+        }
     }
 }

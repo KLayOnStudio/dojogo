@@ -271,6 +271,23 @@ class LocalStorageService: ObservableObject {
         userDefaults.set(id, forKey: lastSeenAnnouncementIdKey)
     }
 
+    func getDismissedAnnouncementIds() -> Set<Int> {
+        let array = userDefaults.array(forKey: "dismissed_announcement_ids") as? [Int] ?? []
+        return Set(array)
+    }
+
+    func dismissAnnouncement(_ id: Int) {
+        var current = getDismissedAnnouncementIds()
+        current.insert(id)
+        userDefaults.set(Array(current), forKey: "dismissed_announcement_ids")
+    }
+
+    func undismissAnnouncement(_ id: Int) {
+        var current = getDismissedAnnouncementIds()
+        current.remove(id)
+        userDefaults.set(Array(current), forKey: "dismissed_announcement_ids")
+    }
+
     // MARK: - Last Sensor Mode
 
     func getLastSensorMode() -> SensorMode {

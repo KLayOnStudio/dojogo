@@ -13,9 +13,17 @@ struct SwingOverlayChart: View {
     let unit: String
     let color: Color
     let valueExtractor: (IMUSample) -> Float
+    var synchronous: Bool = false
 
     @State private var cachedSwingData: [[DataPoint]] = []
     @State private var cachedAverage: [DataPoint] = []
+
+    private var activeSwingData: [[DataPoint]] {
+        synchronous ? computeSwingData() : cachedSwingData
+    }
+    private var activeAverage: [DataPoint] {
+        synchronous ? computeAverage(from: activeSwingData) : cachedAverage
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -23,7 +31,7 @@ struct SwingOverlayChart: View {
                 .font(.pixelifyBodyBold)
                 .foregroundColor(.white)
 
-            if cachedSwingData.isEmpty {
+            if activeSwingData.isEmpty {
                 Text("No swing data")
                     .font(.pixelifySmall)
                     .foregroundColor(.gray)
@@ -34,7 +42,7 @@ struct SwingOverlayChart: View {
                     // Individual swings at low opacity — evenly sampled, max 10
                     ForEach(sampledIndices.indices, id: \.self) { i in
                         let swingIndex = sampledIndices[i]
-                        let swing = cachedSwingData[swingIndex]
+                        let swing = activeSwingData[swingIndex]
                         ForEach(swing.indices, id: \.self) { pointIndex in
                             let point = swing[pointIndex]
                             LineMark(
@@ -48,8 +56,8 @@ struct SwingOverlayChart: View {
                     }
 
                     // Average swing at full opacity
-                    ForEach(cachedAverage.indices, id: \.self) { i in
-                        let point = cachedAverage[i]
+                    ForEach(activeAverage.indices, id: \.self) { i in
+                        let point = activeAverage[i]
                         LineMark(
                             x: .value("Time", point.time),
                             y: .value(unit, point.value),
@@ -87,6 +95,7 @@ struct SwingOverlayChart: View {
             }
         }
         .task {
+            guard !synchronous else { return }
             let data = computeSwingData()
             cachedSwingData = data
             cachedAverage = computeAverage(from: data)
@@ -94,7 +103,7 @@ struct SwingOverlayChart: View {
     }
 
     private var sampledIndices: [Int] {
-        let count = cachedSwingData.count
+        let count = activeSwingData.count
         guard count > 10 else { return Array(0..<count) }
         return (0..<10).map { i in Int(Double(i) / 9.0 * Double(count - 1)) }
     }

@@ -287,13 +287,13 @@ struct MainMapView: View {
 
                     // Navigation Bar
                     HStack(spacing: 0) {
-                        // Home Button (announcements board)
+                        // Tegami Button (inbox/announcements)
                         Button(action: {
                             showAnnouncements = true
                         }) {
                             VStack(spacing: 6) {
                                 ZStack(alignment: .topTrailing) {
-                                    Image("dojoIcon")
+                                    Image("tegami")
                                         .resizable()
                                         .scaledToFit()
                                         .frame(width: 36, height: 36)
@@ -311,7 +311,7 @@ struct MainMapView: View {
                                         .offset(x: 2, y: -2)
                                     }
                                 }
-                                Text("HOME")
+                                Text("TEGAMI")
                                     .font(.pixelify(size: 9, weight: .bold))
                                     .foregroundColor(.white)
                             }

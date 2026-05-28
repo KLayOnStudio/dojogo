@@ -688,7 +688,9 @@ struct ReportView: View {
             try await APIService.shared.uploadSessionData(
                 sessionId: session.id,
                 imuSamples: gameViewModel.imuSamples,
-                cueEvents: gameViewModel.cueEvents
+                cueEvents: gameViewModel.cueEvents,
+                deviceModel: session.deviceModel,
+                sensorMode: session.sensorMode
             )
         } catch {
             print("Failed to upload session data: \(error)")
