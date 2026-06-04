@@ -134,11 +134,11 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 participant_ids = [p['user_id'] for p in participants]
                 placeholders = ','.join(['%s'] * len(participant_ids))
                 sessions = execute_query(
-                    f"""SELECT user_id, swing_count, DATE(created_at) AS session_date
+                    f"""SELECT user_id, swing_count, COALESCE(session_date, DATE(created_at)) AS session_date
                         FROM sessions
                         WHERE user_id IN ({placeholders})
-                          AND DATE(created_at) >= %s
-                          AND DATE(created_at) <= %s""",
+                          AND COALESCE(session_date, DATE(created_at)) >= %s
+                          AND COALESCE(session_date, DATE(created_at)) <= %s""",
                     tuple(participant_ids) + (start, end),
                     fetch=True
                 )

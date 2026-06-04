@@ -218,12 +218,19 @@ class APIService: ObservableObject {
         try await addAuthHeaders(to: &request)
 
         // Build body manually to include optional stats fields
+        let localDateFormatter = DateFormatter()
+        localDateFormatter.dateFormat = "yyyy-MM-dd"
+        localDateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        // localDate uses device calendar/timezone so streak is based on the user's local day
+        let localDate = localDateFormatter.string(from: session.startTime)
+
         var body: [String: Any] = [
             "id": session.id.uuidString,
             "swingCount": session.swingCount,
             "duration": session.duration,
             "mode": session.mode.rawValue,
-            "sensorMode": session.sensorMode.rawValue
+            "sensorMode": session.sensorMode.rawValue,
+            "localDate": localDate
         ]
         if let stageId = session.stageId {
             body["stageId"] = stageId

@@ -46,6 +46,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         avg_strike_time_ms = req_body.get('avgStrikeTimeMs')
         stage_id = req_body.get('stageId')
         device_model = req_body.get('deviceModel') if sensor_mode == 'mount' else None
+        local_date = req_body.get('localDate')  # yyyy-MM-dd in user's local timezone
 
         if not all([session_id, swing_count is not None, duration is not None]):
             return func.HttpResponse(
@@ -74,12 +75,12 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 """INSERT INTO sessions (id, user_id, swing_count, duration, mode, sensor_mode,
                    kendo_rank, experience_years, experience_months,
                    tempo, avg_speed, max_speed, max_power,
-                   avg_reaction_ms, avg_strike_time_ms, stage_id, device_model)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   avg_reaction_ms, avg_strike_time_ms, stage_id, device_model, session_date)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (session_id, user_id, swing_count, duration, mode, sensor_mode,
                  kendo_rank, experience_years, experience_months,
                  tempo, avg_speed, max_speed, max_power,
-                 avg_reaction_ms, avg_strike_time_ms, stage_id, device_model)
+                 avg_reaction_ms, avg_strike_time_ms, stage_id, device_model, local_date)
             )
         except Exception:
             # Fallback if stats columns don't exist yet (pre-migration 008/010)

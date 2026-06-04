@@ -49,10 +49,10 @@ def build_streak_leaderboard(user_rows, requesting_user_id, page, page_size):
     placeholders = ','.join(['%s'] * len(user_ids))
 
     sessions = execute_query(
-        f"""SELECT user_id, DATE(created_at) AS session_date
+        f"""SELECT user_id, COALESCE(session_date, DATE(created_at)) AS session_date
             FROM sessions
             WHERE user_id IN ({placeholders})
-              AND DATE(created_at) >= %s""",
+              AND COALESCE(session_date, DATE(created_at)) >= %s""",
         tuple(user_ids) + (STREAK_START_DATE,),
         fetch=True
     )
