@@ -219,10 +219,14 @@ class APIService: ObservableObject {
 
         // Build body manually to include optional stats fields
         let localDateFormatter = DateFormatter()
-        localDateFormatter.dateFormat = "yyyy-MM-dd"
         localDateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        // localDate uses device calendar/timezone so streak is based on the user's local day
+        localDateFormatter.dateFormat = "yyyy-MM-dd"
         let localDate = localDateFormatter.string(from: session.startTime)
+
+        let localDatetimeFormatter = DateFormatter()
+        localDatetimeFormatter.locale = Locale(identifier: "en_US_POSIX")
+        localDatetimeFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        let localDatetime = localDatetimeFormatter.string(from: session.startTime)
 
         var body: [String: Any] = [
             "id": session.id.uuidString,
@@ -230,7 +234,8 @@ class APIService: ObservableObject {
             "duration": session.duration,
             "mode": session.mode.rawValue,
             "sensorMode": session.sensorMode.rawValue,
-            "localDate": localDate
+            "localDate": localDate,
+            "localDatetime": localDatetime
         ]
         if let stageId = session.stageId {
             body["stageId"] = stageId

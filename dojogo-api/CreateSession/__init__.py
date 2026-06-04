@@ -46,7 +46,8 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         avg_strike_time_ms = req_body.get('avgStrikeTimeMs')
         stage_id = req_body.get('stageId')
         device_model = req_body.get('deviceModel') if sensor_mode == 'mount' else None
-        local_date = req_body.get('localDate')  # yyyy-MM-dd in user's local timezone
+        local_date = req_body.get('localDate')      # yyyy-MM-dd in user's local timezone
+        local_datetime = req_body.get('localDatetime')  # yyyy-MM-ddTHH:mm:ss in user's local timezone
 
         if not all([session_id, swing_count is not None, duration is not None]):
             return func.HttpResponse(
@@ -75,12 +76,14 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 """INSERT INTO sessions (id, user_id, swing_count, duration, mode, sensor_mode,
                    kendo_rank, experience_years, experience_months,
                    tempo, avg_speed, max_speed, max_power,
-                   avg_reaction_ms, avg_strike_time_ms, stage_id, device_model, session_date)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   avg_reaction_ms, avg_strike_time_ms, stage_id, device_model,
+                   session_date, session_local_datetime)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 (session_id, user_id, swing_count, duration, mode, sensor_mode,
                  kendo_rank, experience_years, experience_months,
                  tempo, avg_speed, max_speed, max_power,
-                 avg_reaction_ms, avg_strike_time_ms, stage_id, device_model, local_date)
+                 avg_reaction_ms, avg_strike_time_ms, stage_id, device_model,
+                 local_date, local_datetime)
             )
         except Exception:
             # Fallback if stats columns don't exist yet (pre-migration 008/010)
@@ -104,25 +107,27 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         # Check streak logic based on daily activity
         # Use local_date from device (timezone-correct); fall back to server UTC date
+        # Use local_date from device when available; fall back to server UTC date
         if local_date:
             from datetime import datetime as dt
             today = dt.strptime(local_date, '%Y-%m-%d').date()
-            date_col = 'session_date'
         else:
             today = datetime.now().date()
-            date_col = 'DATE(created_at)'
 
         yesterday = today - timedelta(days=1)
 
+        # COALESCE so old sessions (session_date=NULL) fall back to DATE(created_at)
         today_sessions_before = execute_query(
-            f"SELECT COUNT(*) as count FROM sessions WHERE user_id = %s AND {date_col} = %s AND id != %s",
+            "SELECT COUNT(*) as count FROM sessions "
+            "WHERE user_id = %s AND COALESCE(session_date, DATE(created_at)) = %s AND id != %s",
             (user_id, today, session_id),
             fetch=True
         )
 
         if today_sessions_before and today_sessions_before[0]['count'] == 0:
             yesterday_sessions = execute_query(
-                f"SELECT COUNT(*) as count FROM sessions WHERE user_id = %s AND {date_col} = %s",
+                "SELECT COUNT(*) as count FROM sessions "
+                "WHERE user_id = %s AND COALESCE(session_date, DATE(created_at)) = %s",
                 (user_id, yesterday),
                 fetch=True
             )

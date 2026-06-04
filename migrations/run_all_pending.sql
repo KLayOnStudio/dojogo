@@ -151,11 +151,18 @@ SET @stmt = IF(@col_exists = 0,
     'SELECT 1');
 PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;
 
--- 017: Local session date (user's timezone) for accurate streak calculation
+-- 017: Local session date and datetime (user's timezone) for streak and analytics
 SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sessions' AND COLUMN_NAME = 'session_date');
 SET @stmt = IF(@col_exists = 0,
     'ALTER TABLE sessions ADD COLUMN session_date DATE DEFAULT NULL',
+    'SELECT 1');
+PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;
+
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'sessions' AND COLUMN_NAME = 'session_local_datetime');
+SET @stmt = IF(@col_exists = 0,
+    'ALTER TABLE sessions ADD COLUMN session_local_datetime DATETIME DEFAULT NULL',
     'SELECT 1');
 PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;
 
