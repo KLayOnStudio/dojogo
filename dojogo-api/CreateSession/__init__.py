@@ -49,6 +49,15 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         local_date = req_body.get('localDate')      # yyyy-MM-dd in user's local timezone
         local_datetime = req_body.get('localDatetime')  # yyyy-MM-ddTHH:mm:ss in user's local timezone
 
+        # If client didn't send localDate, compute from Central time (all users in Chicago)
+        if not local_date:
+            try:
+                from zoneinfo import ZoneInfo
+                local_date = datetime.now(ZoneInfo('America/Chicago')).strftime('%Y-%m-%d')
+            except Exception:
+                from datetime import timezone as tz
+                local_date = (datetime.now(tz.utc) + timedelta(hours=-5)).strftime('%Y-%m-%d')
+
         if not all([session_id, swing_count is not None, duration is not None]):
             return func.HttpResponse(
                 json.dumps({"error": "Missing required fields: id, swingCount, duration"}),
@@ -106,13 +115,17 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         )
 
         # Check streak logic based on daily activity
-        # Use local_date from device (timezone-correct); fall back to server UTC date
-        # Use local_date from device when available; fall back to server UTC date
+        # Use local_date from device when available; fall back to Central time (all users in Chicago)
         if local_date:
             from datetime import datetime as dt
             today = dt.strptime(local_date, '%Y-%m-%d').date()
         else:
-            today = datetime.now().date()
+            try:
+                from zoneinfo import ZoneInfo
+                today = datetime.now(ZoneInfo('America/Chicago')).date()
+            except Exception:
+                from datetime import timezone as tz
+                today = (datetime.now(tz.utc) + timedelta(hours=-5)).date()
 
         yesterday = today - timedelta(days=1)
 
