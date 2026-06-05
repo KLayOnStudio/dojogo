@@ -573,7 +573,7 @@ struct ReportView: View {
             swingCount: session.swingCount,
             duration: session.duration,
             streak: streak,
-            stats: gameViewModel.sessionStats,
+            stats: gameViewModel.sessionStats.map { StoredSessionStats.from($0) },
             segments: segments,
             samples: gameViewModel.imuSamples,
             backgroundColor: shareBackgroundColor

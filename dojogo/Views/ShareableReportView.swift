@@ -5,7 +5,7 @@ struct ShareableReportView: View {
     let swingCount: Int
     let duration: TimeInterval
     let streak: Int?
-    let stats: SessionStats?
+    let stats: StoredSessionStats?
     let segments: [ChartSegment]
     let samples: [IMUSample]
     let backgroundColor: Color
@@ -118,15 +118,15 @@ struct ShareableReportView: View {
     }
 
     @ViewBuilder
-    private func shareableStatsGrid(stats: SessionStats) -> some View {
-        let reactionStr = stats.reactionResult?.avgReactionMs.map { "\(Int($0))" } ?? "—"
+    private func shareableStatsGrid(stats: StoredSessionStats) -> some View {
+        let reactionStr = stats.avgReactionMs.map { "\(Int($0))" } ?? "—"
         let strikeStr = stats.avgStrikeTimeMs.map { "\(Int($0))" } ?? "—"
         let powerStr = stats.maxPower.map { String(format: "%.1f", $0) } ?? "—"
         let speedStr = stats.maxSpeed.map { String(format: "%.1f", $0) } ?? "—"
-        let timeStr = formatDuration(stats.durationSec)
+        let timeStr = formatDuration(duration)
 
         let tiles: [(String, String, String?, Color)] = [
-            ("SWINGS", "\(stats.swingCount)", nil, .yellow),
+            ("SWINGS", "\(swingCount)", nil, .yellow),
             ("REACTION", reactionStr, "ms", .green),
             ("STRIKE", strikeStr, "ms", .cyan),
             ("MAX POWER", powerStr, "m/s²", .red),

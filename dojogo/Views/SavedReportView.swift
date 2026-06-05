@@ -148,6 +148,54 @@ struct SavedReportView: View {
                         Spacer()
                             .frame(height: 20)
 
+                        // Share Button
+                        Button(action: { showShareOptions.toggle() }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 14, weight: .bold))
+                                Text("SHARE")
+                                    .font(.pixelifyButton)
+                            }
+                            .foregroundColor(.black)
+                            .frame(maxWidth: min(geometry.size.width * 0.7, 280))
+                            .frame(height: 48)
+                            .background(Color.yellow)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 0)
+                                    .stroke(Color.white, lineWidth: 2)
+                            )
+                            .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 3)
+                        }
+                        .padding(.horizontal, 20)
+
+                        if showShareOptions {
+                            VStack(spacing: 8) {
+                                Text("BACKGROUND")
+                                    .font(.pixelify(size: 10))
+                                    .foregroundColor(.gray)
+
+                                HStack(spacing: 12) {
+                                    shareColorButton(.black, label: "Dark")
+                                    shareColorButton(.white, label: "Light")
+                                    shareColorButton(.clear, label: "Clear")
+                                }
+
+                                Button(action: { shareReport() }) {
+                                    Text("EXPORT IMAGE")
+                                        .font(.pixelifyBodyBold)
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: min(geometry.size.width * 0.7, 280))
+                                        .frame(height: 44)
+                                        .background(Color.blue.opacity(0.8))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 0)
+                                                .stroke(Color.white.opacity(0.4), lineWidth: 1)
+                                        )
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                        }
+
                         // Close Button
                         Button(action: {
                             dismiss()
@@ -178,6 +226,8 @@ struct SavedReportView: View {
     // MARK: - State
 
     @State private var showVisualization = false
+    @State private var showShareOptions = false
+    @State private var shareBackgroundColor: Color = .black
 
     // MARK: - Chart Segments
 
@@ -226,6 +276,55 @@ struct SavedReportView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy"
         return formatter.string(from: report.session.date)
+    }
+
+    // MARK: - Share
+
+    private func shareColorButton(_ color: Color, label: String) -> some View {
+        Button(action: { shareBackgroundColor = color }) {
+            Text(label)
+                .font(.pixelify(size: 10, weight: .bold))
+                .foregroundColor(color == .white ? .black : .white)
+                .frame(width: 64, height: 32)
+                .background(color == .clear ? Color.gray.opacity(0.3) : color)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 0)
+                        .stroke(shareBackgroundColor == color ? Color.cyan : Color.white.opacity(0.3),
+                                lineWidth: shareBackgroundColor == color ? 3 : 1)
+                )
+        }
+        .buttonStyle(PixelButtonStyle())
+    }
+
+    private func shareReport() {
+        let view = ShareableReportView(
+            swingCount: report.session.swingCount,
+            duration: report.session.duration,
+            streak: nil,
+            stats: report.stats,
+            segments: chartSegments,
+            samples: report.imuSamples,
+            backgroundColor: shareBackgroundColor
+        )
+
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 3.0
+        renderer.isOpaque = shareBackgroundColor != .clear
+
+        guard let image = renderer.uiImage else { return }
+        guard let pngData = image.pngData() else { return }
+
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("DojoGo_Report.png")
+        try? pngData.write(to: tempURL)
+
+        let activityVC = UIActivityViewController(activityItems: [tempURL], applicationActivities: nil)
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootVC = windowScene.windows.first?.rootViewController {
+            var topVC = rootVC
+            while let presented = topVC.presentedViewController { topVC = presented }
+            activityVC.popoverPresentationController?.sourceView = topVC.view
+            topVC.present(activityVC, animated: true)
+        }
     }
 }
 
