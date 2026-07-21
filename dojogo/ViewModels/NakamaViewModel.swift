@@ -19,7 +19,10 @@ class NakamaViewModel: ObservableObject {
     @Published var isSearching = false
     @Published var isLoading = false
     @Published var errorMessage: String?
-    @Published var nudgedUserIds: Set<String> = []
+    @Published private var nudgeSentAt: [String: Date] = [:]
+
+    /// Must match NUDGE_COOLDOWN_MINUTES in dojogo-api/CreateNudge/__init__.py.
+    private let nudgeCooldownSeconds: TimeInterval = 2 * 60
 
     private var searchCancellable: AnyCancellable?
     private var dojoSearchCancellable: AnyCancellable?
@@ -137,14 +140,26 @@ class NakamaViewModel: ObservableObject {
         }
     }
 
-    func sendNudge(to friend: FriendInfo) async {
-        guard !nudgedUserIds.contains(friend.userId) else { return }
-        nudgedUserIds.insert(friend.userId)
+    /// Nil if the friend can be nudged right now.
+    func isOnNudgeCooldown(_ friend: FriendInfo) -> Bool {
+        guard let sentAt = nudgeSentAt[friend.userId] else { return false }
+        return Date().timeIntervalSince(sentAt) < nudgeCooldownSeconds
+    }
+
+    func sendNudge(to friend: FriendInfo, message: String) async {
+        guard !isOnNudgeCooldown(friend) else { return }
+        nudgeSentAt[friend.userId] = Date()
         do {
-            try await APIService.shared.createNudge(toUserId: friend.userId)
+            try await APIService.shared.createNudge(toUserId: friend.userId, message: message)
         } catch {
-            nudgedUserIds.remove(friend.userId)
-            errorMessage = error.localizedDescription
+            let nsError = error as NSError
+            if nsError.code == 429 {
+                // Server says still on cooldown (e.g. stale client-side timer) — keep nudgeSentAt
+                // set so the compose sheet shows the cooldown card, not a raw system alert.
+            } else {
+                nudgeSentAt.removeValue(forKey: friend.userId)
+                errorMessage = error.localizedDescription
+            }
         }
     }
 

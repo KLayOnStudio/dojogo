@@ -5,6 +5,7 @@ struct NakamaView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var viewModel = NakamaViewModel()
     @State private var selectedFriend: FriendInfo?
+    @State private var nudgeTarget: FriendInfo?
 
     var body: some View {
         GeometryReader { geometry in
@@ -72,6 +73,25 @@ struct NakamaView: View {
         }
         .sheet(item: $selectedFriend) { friend in
             FriendInsightsView(friend: friend)
+        }
+        .sheet(item: $nudgeTarget) { friend in
+            NudgeComposeSheet(
+                friend: friend,
+                isOnCooldown: viewModel.isOnNudgeCooldown(friend)
+            ) { message in
+                Task { await viewModel.sendNudge(to: friend, message: message) }
+            }
+        }
+        .alert(
+            "Couldn't do that",
+            isPresented: Binding(
+                get: { viewModel.errorMessage != nil },
+                set: { if !$0 { viewModel.errorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.errorMessage ?? "")
         }
     }
 
@@ -349,9 +369,9 @@ struct NakamaView: View {
             ForEach(viewModel.friends) { friend in
                 NakamaFriendRow(
                     friend: friend,
-                    isNudged: viewModel.nudgedUserIds.contains(friend.userId),
+                    isOnCooldown: viewModel.isOnNudgeCooldown(friend),
                     onTap: { selectedFriend = friend },
-                    onNudge: { Task { await viewModel.sendNudge(to: friend) } }
+                    onNudge: { nudgeTarget = friend }
                 )
             }
         }
@@ -360,69 +380,72 @@ struct NakamaView: View {
 
 private struct NakamaFriendRow: View {
     let friend: FriendInfo
-    let isNudged: Bool
+    let isOnCooldown: Bool
     let onTap: () -> Void
     let onNudge: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(friend.displayName)
-                        .font(.pixelifyBody)
-                        .foregroundColor(.white)
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(friend.displayName)
+                    .font(.pixelifyBody)
+                    .foregroundColor(.white)
 
-                    if let rank = friend.kendoRank {
-                        Text(rank)
-                            .font(.pixelify(size: 10))
-                            .foregroundColor(.gray)
-                    }
+                if let rank = friend.kendoRank {
+                    Text(rank)
+                        .font(.pixelify(size: 10))
+                        .foregroundColor(.gray)
                 }
-
-                Spacer()
-
-                HStack(spacing: 8) {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("\(friend.streak)")
-                            .font(.pixelify(size: 14, weight: .bold))
-                            .foregroundColor(.orange)
-                        Text("STREAK")
-                            .font(.pixelify(size: 8))
-                            .foregroundColor(.gray)
-                    }
-
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("\(friend.totalCount)")
-                            .font(.pixelify(size: 14, weight: .bold))
-                            .foregroundColor(.green)
-                        Text("SWINGS")
-                            .font(.pixelify(size: 8))
-                            .foregroundColor(.gray)
-                    }
-                }
-
-                Button(action: onNudge) {
-                    Image("nakamaIcon")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 20, height: 20)
-                        .opacity(isNudged ? 0.9 : 0.35)
-                }
-                .buttonStyle(.plain)
-                .disabled(isNudged)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12))
-                    .foregroundColor(.gray.opacity(0.5))
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color.gray.opacity(0.15))
-            .overlay(
-                RoundedRectangle(cornerRadius: 0)
-                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
-            )
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onTap)
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(friend.streak)")
+                        .font(.pixelify(size: 14, weight: .bold))
+                        .foregroundColor(.orange)
+                    Text("STREAK")
+                        .font(.pixelify(size: 8))
+                        .foregroundColor(.gray)
+                }
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(friend.totalCount)")
+                        .font(.pixelify(size: 14, weight: .bold))
+                        .foregroundColor(.green)
+                    Text("SWINGS")
+                        .font(.pixelify(size: 8))
+                        .foregroundColor(.gray)
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onTap)
+
+            Button(action: onNudge) {
+                Image("nakamaIcon")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 20, height: 20)
+                    .opacity(isOnCooldown ? 0.9 : 0.7)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12))
+                .foregroundColor(.gray.opacity(0.5))
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onTap)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color.gray.opacity(0.15))
+        .overlay(
+            RoundedRectangle(cornerRadius: 0)
+                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+            )
     }
 }

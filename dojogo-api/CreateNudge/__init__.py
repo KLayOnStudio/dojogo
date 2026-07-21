@@ -9,7 +9,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 from database import execute_query
 from auth import require_auth
 
-NUDGE_COOLDOWN_HOURS = 24
+# Shortened for live event demoing (was 24 * 60 = 1440). Bump back to 1440 after the event.
+NUDGE_COOLDOWN_MINUTES = 2
+NUDGE_MESSAGE_MAX_LENGTH = 100
+DEFAULT_NUDGE_MESSAGE = "Time to pick up the shinai! ⚔️"
 
 
 @require_auth
@@ -56,19 +59,30 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 headers={"Content-Type": "application/json"}
             )
 
-        # Cooldown: one nudge per friend per NUDGE_COOLDOWN_HOURS
+        # Cooldown: one nudge per friend per NUDGE_COOLDOWN_MINUTES
         recent = execute_query(
             """SELECT id FROM notifications
                WHERE user_id = %s AND type = 'nudge'
                  AND JSON_UNQUOTE(JSON_EXTRACT(data, '$.fromUserId')) = %s
-                 AND created_at > NOW() - INTERVAL %s HOUR""",
-            (to_user_id, user_id, NUDGE_COOLDOWN_HOURS),
+                 AND created_at > NOW() - INTERVAL %s MINUTE""",
+            (to_user_id, user_id, NUDGE_COOLDOWN_MINUTES),
             fetch=True
         )
         if recent:
             return func.HttpResponse(
                 json.dumps({"error": "You already nudged this nakama recently"}),
                 status_code=429,
+                headers={"Content-Type": "application/json"}
+            )
+
+        message = req_body.get('message')
+        message = message.strip() if isinstance(message, str) else ''
+        if not message:
+            message = DEFAULT_NUDGE_MESSAGE
+        elif len(message) > NUDGE_MESSAGE_MAX_LENGTH:
+            return func.HttpResponse(
+                json.dumps({"error": f"message must be {NUDGE_MESSAGE_MAX_LENGTH} characters or fewer"}),
+                status_code=400,
                 headers={"Content-Type": "application/json"}
             )
 
@@ -83,7 +97,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             (
                 to_user_id,
                 f"{sender_name} nudged you!",
-                "Time to pick up the shinai.",
+                message,
                 json.dumps({"fromUserId": user_id})
             )
         )

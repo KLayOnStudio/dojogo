@@ -814,13 +814,13 @@ class APIService: ObservableObject {
         throw APIError.serverError
     }
 
-    func createNudge(toUserId: String) async throws {
+    func createNudge(toUserId: String, message: String) async throws {
         let url = URL(string: "\(baseURL)/CreateNudge")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         try await addAuthHeaders(to: &request)
-        request.httpBody = try JSONEncoder().encode(["toUserId": toUserId])
+        request.httpBody = try JSONEncoder().encode(["toUserId": toUserId, "message": message])
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
