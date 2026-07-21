@@ -124,6 +124,22 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         requesting_user_id = user_id
         offset = (page - 1) * page_size
 
+        friendships = execute_query(
+            """SELECT CASE WHEN user_id_a = %s THEN user_id_b ELSE user_id_a END AS other_id
+               FROM friendships WHERE user_id_a = %s OR user_id_b = %s""",
+            (user_id, user_id, user_id),
+            fetch=True
+        )
+        friend_ids = {r['other_id'] for r in (friendships or [])}
+
+        sent_requests = execute_query(
+            """SELECT to_user_id FROM friend_requests
+               WHERE from_user_id = %s AND status = 'pending'""",
+            (user_id,),
+            fetch=True
+        )
+        pending_ids = {r['to_user_id'] for r in (sent_requests or [])}
+
         def format_entry(row):
             is_own = row["user_id"] == requesting_user_id
             is_public = bool(row.get("is_public", True))
@@ -133,7 +149,9 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 "nickname": nickname,
                 "userNumber": int(row["user_number"]) if row["user_number"] is not None else None,
                 "score": int(row["score"]) if row["score"] is not None else 0,
-                "rank": int(row["rank"])
+                "rank": int(row["rank"]),
+                "isFriend": row["user_id"] in friend_ids,
+                "isPending": row["user_id"] in pending_ids,
             }
 
         # ── STREAK: compute live from session dates ──────────────────────────

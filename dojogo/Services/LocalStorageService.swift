@@ -11,7 +11,6 @@ class LocalStorageService: ObservableObject {
     private let dojoNamesCacheTimeKey = "dojo_names_cache_time"
     private let stageSwingsKeyPrefix = "stage_swings_"
     private let selectedAvatarKey = "selected_avatar"
-    private let campaignSeenKeyPrefix = "campaign_seen_"
     private let sessionIntroSeenKey = "session_intro_seen"
     private let lastSensorModeKey = "last_sensor_mode"
     private let lastSeenAnnouncementIdKey = "last_seen_announcement_id"
@@ -298,16 +297,6 @@ class LocalStorageService: ObservableObject {
 
     func saveLastSensorMode(_ mode: SensorMode) {
         userDefaults.set(mode.rawValue, forKey: lastSensorModeKey)
-    }
-
-    // MARK: - Campaign Seen
-
-    func hasCampaignBeenSeen(for userId: String) -> Bool {
-        return userDefaults.bool(forKey: campaignSeenKeyPrefix + userId)
-    }
-
-    func markCampaignAsSeen(for userId: String) {
-        userDefaults.set(true, forKey: campaignSeenKeyPrefix + userId)
     }
 
     // MARK: - Last Session

@@ -6,20 +6,53 @@ private let nudgePresets = [
     "Let's train together today! 🥋"
 ]
 
+/// Lightweight identity for anyone the nudge sheet can target — a nakama (FriendInfo)
+/// or a leaderboard entry that may not be a friend yet.
+struct NudgeTarget: Identifiable {
+    let userId: String
+    let displayName: String
+    var id: String { userId }
+}
+
+enum NudgeSheetMode {
+    case presets
+    case cooldown
+    case sendRequest
+    case requestPending
+}
+
 struct NudgeComposeSheet: View {
-    let friend: FriendInfo
-    let isOnCooldown: Bool
-    let onSend: (String) -> Void
+    let target: NudgeTarget
+    let mode: NudgeSheetMode
+    let onSendMessage: (String) -> Void
+    let onSendRequest: () -> Void
     @Environment(\.dismiss) var dismiss
 
     private var headerText: String {
-        isOnCooldown ? "ALREADY NUDGED" : "PICK A MESSAGE"
+        switch mode {
+        case .presets: return "PICK A MESSAGE"
+        case .cooldown: return "ALREADY NUDGED"
+        case .sendRequest: return "NOT NAKAMA YET"
+        case .requestPending: return "REQUEST SENT"
+        }
     }
 
     private var cards: [String] {
-        isOnCooldown
-            ? ["Wait at least 2 minutes before nudging \(friend.displayName) again."]
-            : nudgePresets
+        switch mode {
+        case .presets:
+            return nudgePresets
+        case .cooldown:
+            return ["Wait at least 2 minutes before nudging \(target.displayName) again."]
+        case .sendRequest:
+            return ["Send \(target.displayName) a nakama request"]
+        case .requestPending:
+            return ["You already sent \(target.displayName) a nakama request."]
+        }
+    }
+
+    /// Cards that are purely informational (no action, just an OK to dismiss).
+    private var isInformational: Bool {
+        mode == .cooldown || mode == .requestPending
     }
 
     var body: some View {
@@ -27,7 +60,7 @@ struct NudgeComposeSheet: View {
             Color.black.ignoresSafeArea()
 
             VStack(spacing: 16) {
-                Text("NUDGE \(friend.displayName.uppercased())")
+                Text("NUDGE \(target.displayName.uppercased())")
                     .font(.pixelifyBodyBold)
                     .foregroundColor(.white)
                     .padding(.top, 28)
@@ -40,14 +73,7 @@ struct NudgeComposeSheet: View {
 
                 VStack(spacing: 10) {
                     ForEach(cards, id: \.self) { card in
-                        Button(action: {
-                            if isOnCooldown {
-                                dismiss()
-                            } else {
-                                onSend(card)
-                                dismiss()
-                            }
-                        }) {
+                        Button(action: { handleTap(card) }) {
                             Text(card)
                                 .font(.pixelifyBody)
                                 .foregroundColor(.white)
@@ -65,7 +91,7 @@ struct NudgeComposeSheet: View {
                 }
                 .padding(.horizontal, 24)
 
-                if isOnCooldown {
+                if isInformational {
                     Button(action: { dismiss() }) {
                         Text("OK")
                             .font(.pixelifyButton)
@@ -87,5 +113,18 @@ struct NudgeComposeSheet: View {
         }
         .presentationDetents([.fraction(0.45)])
         .presentationBackground(.black)
+    }
+
+    private func handleTap(_ card: String) {
+        switch mode {
+        case .presets:
+            onSendMessage(card)
+            dismiss()
+        case .sendRequest:
+            onSendRequest()
+            dismiss()
+        case .cooldown, .requestPending:
+            dismiss()
+        }
     }
 }

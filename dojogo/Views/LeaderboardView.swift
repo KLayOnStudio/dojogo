@@ -6,6 +6,8 @@ struct LeaderboardUser: Identifiable {
     let name: String
     let value: Int
     let rank: Int
+    let isFriend: Bool
+    let isPending: Bool
 }
 
 struct LeaderboardView: View {
@@ -17,6 +19,9 @@ struct LeaderboardView: View {
     @State private var myEntry: LeaderboardV2Entry?
     @State private var isLoading = true
     @State private var errorMessage: String?
+    @StateObject private var nudgeViewModel = NakamaViewModel()
+    @State private var nudgeSheetUser: LeaderboardUser?
+    @State private var justRequestedUserIds: Set<String> = []
 
     enum LeaderboardType: CaseIterable {
         case totalSwings, streaks
@@ -157,15 +162,19 @@ struct LeaderboardView: View {
                         ScrollView {
                             VStack(spacing: 12) {
                                 ForEach(entries) { entry in
+                                    let user = LeaderboardUser(
+                                        userId: entry.userId,
+                                        name: entry.displayName,
+                                        value: entry.score,
+                                        rank: entry.rank,
+                                        isFriend: entry.isFriend,
+                                        isPending: entry.isPending
+                                    )
                                     LeaderboardRow(
-                                        user: LeaderboardUser(
-                                            userId: entry.userId,
-                                            name: entry.displayName,
-                                            value: entry.score,
-                                            rank: entry.rank
-                                        ),
+                                        user: user,
                                         type: leaderboardType,
-                                        isCurrentUser: entry.userId == authViewModel.currentUser?.id
+                                        isCurrentUser: entry.userId == authViewModel.currentUser?.id,
+                                        onNudge: { nudgeSheetUser = user }
                                     )
                                 }
                             }
@@ -197,10 +206,13 @@ struct LeaderboardView: View {
                                         userId: me.userId,
                                         name: me.displayName,
                                         value: me.score,
-                                        rank: me.rank
+                                        rank: me.rank,
+                                        isFriend: me.isFriend,
+                                        isPending: me.isPending
                                     ),
                                     type: leaderboardType,
-                                    isCurrentUser: true
+                                    isCurrentUser: true,
+                                    onNudge: {}
                                 )
                                 .padding(.horizontal, 20)
                                 .padding(.bottom, max(geometry.safeAreaInsets.bottom, 12))
@@ -215,6 +227,40 @@ struct LeaderboardView: View {
         }
         .onChange(of: leaderboardType) { _ in fetchLeaderboardData() }
         .onChange(of: leaderboardScope) { _ in fetchLeaderboardData() }
+        .sheet(item: $nudgeSheetUser) { user in
+            let target = NudgeTarget(userId: user.userId, displayName: user.name)
+            let mode: NudgeSheetMode = {
+                if user.isFriend {
+                    return nudgeViewModel.isOnNudgeCooldown(userId: user.userId) ? .cooldown : .presets
+                } else if user.isPending || justRequestedUserIds.contains(user.userId) {
+                    return .requestPending
+                } else {
+                    return .sendRequest
+                }
+            }()
+            NudgeComposeSheet(
+                target: target,
+                mode: mode,
+                onSendMessage: { message in
+                    Task { await nudgeViewModel.sendNudge(toUserId: user.userId, message: message) }
+                },
+                onSendRequest: {
+                    justRequestedUserIds.insert(user.userId)
+                    Task { await nudgeViewModel.sendFriendRequest(toUserId: user.userId) }
+                }
+            )
+        }
+        .alert(
+            "Couldn't do that",
+            isPresented: Binding(
+                get: { nudgeViewModel.errorMessage != nil },
+                set: { if !$0 { nudgeViewModel.errorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(nudgeViewModel.errorMessage ?? "")
+        }
     }
 
     private func fetchLeaderboardData() {
@@ -249,7 +295,7 @@ struct LeaderboardRow: View {
     let user: LeaderboardUser
     let type: LeaderboardView.LeaderboardType
     let isCurrentUser: Bool
-    @State private var showComingSoon = false
+    let onNudge: () -> Void
 
     private var rankColor: Color {
         switch user.rank {
@@ -305,20 +351,15 @@ struct LeaderboardRow: View {
             }
 
             if !isCurrentUser {
-                Button(action: { showComingSoon = true }) {
-                    Image("nakamaIcon")
+                Button(action: onNudge) {
+                    Image("tegami")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 20, height: 20)
-                        .opacity(0.35)
+                        .opacity(user.isFriend ? 0.7 : 0.35)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .sheet(isPresented: $showComingSoon) {
-                    PixelAnnouncementSheet(
-                        title: "COMING SOON",
-                        message: "Poke & messages are coming in the next version!"
-                    )
-                }
             }
         }
         .padding(.horizontal, 16)

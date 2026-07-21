@@ -5,7 +5,7 @@ struct NakamaView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var viewModel = NakamaViewModel()
     @State private var selectedFriend: FriendInfo?
-    @State private var nudgeTarget: FriendInfo?
+    @State private var nudgeTarget: NudgeTarget?
 
     var body: some View {
         GeometryReader { geometry in
@@ -74,13 +74,15 @@ struct NakamaView: View {
         .sheet(item: $selectedFriend) { friend in
             FriendInsightsView(friend: friend)
         }
-        .sheet(item: $nudgeTarget) { friend in
+        .sheet(item: $nudgeTarget) { target in
             NudgeComposeSheet(
-                friend: friend,
-                isOnCooldown: viewModel.isOnNudgeCooldown(friend)
-            ) { message in
-                Task { await viewModel.sendNudge(to: friend, message: message) }
-            }
+                target: target,
+                mode: viewModel.isOnNudgeCooldown(userId: target.userId) ? .cooldown : .presets,
+                onSendMessage: { message in
+                    Task { await viewModel.sendNudge(toUserId: target.userId, message: message) }
+                },
+                onSendRequest: {}
+            )
         }
         .alert(
             "Couldn't do that",
@@ -369,9 +371,9 @@ struct NakamaView: View {
             ForEach(viewModel.friends) { friend in
                 NakamaFriendRow(
                     friend: friend,
-                    isOnCooldown: viewModel.isOnNudgeCooldown(friend),
+                    isOnCooldown: viewModel.isOnNudgeCooldown(userId: friend.userId),
                     onTap: { selectedFriend = friend },
-                    onNudge: { nudgeTarget = friend }
+                    onNudge: { nudgeTarget = NudgeTarget(userId: friend.userId, displayName: friend.displayName) }
                 )
             }
         }
@@ -425,7 +427,7 @@ private struct NakamaFriendRow: View {
             .onTapGesture(perform: onTap)
 
             Button(action: onNudge) {
-                Image("nakamaIcon")
+                Image("tegami")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 20, height: 20)

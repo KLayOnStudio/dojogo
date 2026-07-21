@@ -27,8 +27,6 @@ struct MainMapView: View {
     @State private var hasUnreadAnnouncements = false
     @State private var unreadNotificationCount = 0
     @State private var showCampaign = false
-    @State private var campaignSeen = false
-    @State private var campaignPulse: CGFloat = 1.0
     @State private var isPlayingEnterAnim = false
     @State private var enterFrameIndex = 0
     private let enterFrames = (1...3).map { "CampaignEnter400_\($0)" }
@@ -68,7 +66,8 @@ struct MainMapView: View {
                             withAnimation(.easeInOut(duration: 0.4)) {
                                 avatarPosition = stage.mapPosition
                             }
-                        }
+                        },
+                        showConquerorBanner: stage.id == Stage.allStages.last?.id
                     )
                     .position(
                         x: stage.mapPosition.x * geometry.size.width,
@@ -100,10 +99,6 @@ struct MainMapView: View {
                 if !authViewModel.isGuest {
                     Button(action: {
                         guard !isPlayingEnterAnim else { return }
-                        if let userId = authViewModel.currentUser?.id {
-                            LocalStorageService.shared.markCampaignAsSeen(for: userId)
-                        }
-                        campaignSeen = true
                         isPlayingEnterAnim = true
                         enterFrameIndex = 0
                         Task {
@@ -119,18 +114,10 @@ struct MainMapView: View {
                         }
                     }) {
                         VStack(spacing: 4) {
-                            ZStack {
-                                if !campaignSeen {
-                                    Circle()
-                                        .fill(Color(red: 0.68, green: 0.93, blue: 0.93).opacity(0.5))
-                                        .frame(width: 117, height: 117)
-                                        .scaleEffect(campaignPulse)
-                                }
-                                CampaignIconView(
-                                    isPlayingEnterAnim: isPlayingEnterAnim,
-                                    enterFrameIndex: enterFrameIndex
-                                )
-                            }
+                            CampaignIconView(
+                                isPlayingEnterAnim: isPlayingEnterAnim,
+                                enterFrameIndex: enterFrameIndex
+                            )
 
                             Text("CAMPAIGN")
                                 .font(.pixelify(size: 16, weight: .bold))
@@ -412,15 +399,6 @@ struct MainMapView: View {
             }
             withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
                 boatSway = 4
-            }
-            if let userId = authViewModel.currentUser?.id {
-                campaignSeen = LocalStorageService.shared.hasCampaignBeenSeen(for: userId)
-            }
-            if !campaignSeen {
-                campaignPulse = 1.0
-                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-                    campaignPulse = 1.4
-                }
             }
         }
         .fullScreenCover(isPresented: $showSensorPicker) {

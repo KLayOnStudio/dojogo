@@ -29,6 +29,7 @@ struct ProfileView: View {
 
     // Navigation
     @State private var showAbout = false
+    @State private var showBetaInvite = false
 
     private let rankCases = KendoRank.allCases
 
@@ -352,6 +353,29 @@ struct ProfileView: View {
                                     .padding(.top, 4)
                             }
 
+                            // Invite Beta Testers Link
+                            Button(action: { showBetaInvite = true }) {
+                                HStack {
+                                    Image(systemName: "qrcode")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(.gray)
+                                    Text("Invite Beta Testers")
+                                        .font(.pixelifyBody)
+                                        .foregroundColor(.gray)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.gray.opacity(0.5))
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 14)
+                                .background(Color.gray.opacity(0.1))
+                                .overlay(RoundedRectangle(cornerRadius: 0).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 24)
+
                             // About Link
                             Button(action: { showAbout = true }) {
                                 HStack {
@@ -373,7 +397,7 @@ struct ProfileView: View {
                             }
                             .buttonStyle(.plain)
                             .padding(.horizontal, 20)
-                            .padding(.top, 24)
+                            .padding(.top, 8)
 
                             Spacer()
                         }
@@ -383,6 +407,7 @@ struct ProfileView: View {
             }
         }
         .sheet(isPresented: $showAbout) { AboutView() }
+        .sheet(isPresented: $showBetaInvite) { BetaInviteView() }
         .onAppear {
             loadUserData()
             loadDojoNames()

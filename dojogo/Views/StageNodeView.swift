@@ -5,6 +5,7 @@ struct StageNodeView: View {
     let swings: Int
     let isUnlocked: Bool
     let onTap: () -> Void
+    var showConquerorBanner: Bool = false
 
     @State private var pulseScale: CGFloat = 1.0
 
@@ -55,6 +56,17 @@ struct StageNodeView: View {
                 }
                 .frame(width: size, height: size)
                 .scaleEffect(pulseScale)
+                .overlay(alignment: .top) {
+                    if showConquerorBanner {
+                        // Drop an image named "toriiConquerorBanner" into Assets.xcassets
+                        // to show it here — e.g. shide streamers with the winner's name.
+                        Image("toriiConquerorBanner")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: size * 0.9)
+                            .offset(y: -34)
+                    }
+                }
 
                 // Progress count
                 if isUnlocked {

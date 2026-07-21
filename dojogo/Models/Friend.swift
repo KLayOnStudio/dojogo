@@ -89,6 +89,8 @@ struct LeaderboardV2Entry: Codable, Identifiable {
     let userNumber: Int?
     let score: Int
     let rank: Int
+    let isFriend: Bool
+    let isPending: Bool
 
     var id: String { "\(userId)-\(rank)" }
 

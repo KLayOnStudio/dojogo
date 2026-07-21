@@ -140,26 +140,35 @@ class NakamaViewModel: ObservableObject {
         }
     }
 
-    /// Nil if the friend can be nudged right now.
-    func isOnNudgeCooldown(_ friend: FriendInfo) -> Bool {
-        guard let sentAt = nudgeSentAt[friend.userId] else { return false }
+    /// False if the given user can be nudged right now.
+    func isOnNudgeCooldown(userId: String) -> Bool {
+        guard let sentAt = nudgeSentAt[userId] else { return false }
         return Date().timeIntervalSince(sentAt) < nudgeCooldownSeconds
     }
 
-    func sendNudge(to friend: FriendInfo, message: String) async {
-        guard !isOnNudgeCooldown(friend) else { return }
-        nudgeSentAt[friend.userId] = Date()
+    func sendNudge(toUserId userId: String, message: String) async {
+        guard !isOnNudgeCooldown(userId: userId) else { return }
+        nudgeSentAt[userId] = Date()
         do {
-            try await APIService.shared.createNudge(toUserId: friend.userId, message: message)
+            try await APIService.shared.createNudge(toUserId: userId, message: message)
         } catch {
             let nsError = error as NSError
             if nsError.code == 429 {
                 // Server says still on cooldown (e.g. stale client-side timer) — keep nudgeSentAt
                 // set so the compose sheet shows the cooldown card, not a raw system alert.
             } else {
-                nudgeSentAt.removeValue(forKey: friend.userId)
+                nudgeSentAt.removeValue(forKey: userId)
                 errorMessage = error.localizedDescription
             }
+        }
+    }
+
+    /// For sending a nakama request to someone who isn't a friend yet (e.g. from the leaderboard).
+    func sendFriendRequest(toUserId userId: String) async {
+        do {
+            _ = try await APIService.shared.createFriendRequest(toUserId: userId)
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
