@@ -15,21 +15,19 @@ from auth import require_auth
 STREAK_START_DATE = '2026-06-01'
 
 
-def calculate_current_streak(session_dates):
-    """Return the current consecutive-day streak ending today or yesterday."""
+def calculate_max_streak(session_dates):
+    """Return the longest-ever consecutive-day streak, regardless of recency."""
     if not session_dates:
         return 0
-    today = date.today()
-    unique = sorted(set(session_dates), reverse=True)
-    if (today - unique[0]).days > 1:
-        return 0
-    streak = 1
+    unique = sorted(set(session_dates))
+    max_streak = current = 1
     for i in range(1, len(unique)):
-        if (unique[i - 1] - unique[i]).days == 1:
-            streak += 1
+        if (unique[i] - unique[i - 1]).days == 1:
+            current += 1
+            max_streak = max(max_streak, current)
         else:
-            break
-    return streak
+            current = 1
+    return max_streak
 
 
 def mask_nickname(nickname):
@@ -64,7 +62,7 @@ def build_streak_leaderboard(user_rows, requesting_user_id, page, page_size):
     scored = []
     for u in user_rows:
         uid = u['user_id']
-        streak = calculate_current_streak(dates_map[uid])
+        streak = calculate_max_streak(dates_map[uid])
         if streak > 0:
             scored.append((u, streak))
 
