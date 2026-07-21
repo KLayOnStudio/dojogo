@@ -19,6 +19,7 @@ class NakamaViewModel: ObservableObject {
     @Published var isSearching = false
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var nudgedUserIds: Set<String> = []
 
     private var searchCancellable: AnyCancellable?
     private var dojoSearchCancellable: AnyCancellable?
@@ -133,6 +134,17 @@ class NakamaViewModel: ObservableObject {
             outgoingRequests = out
         } catch {
             print("Failed to load friend requests: \(error)")
+        }
+    }
+
+    func sendNudge(to friend: FriendInfo) async {
+        guard !nudgedUserIds.contains(friend.userId) else { return }
+        nudgedUserIds.insert(friend.userId)
+        do {
+            try await APIService.shared.createNudge(toUserId: friend.userId)
+        } catch {
+            nudgedUserIds.remove(friend.userId)
+            errorMessage = error.localizedDescription
         }
     }
 

@@ -814,6 +814,26 @@ class APIService: ObservableObject {
         throw APIError.serverError
     }
 
+    func createNudge(toUserId: String) async throws {
+        let url = URL(string: "\(baseURL)/CreateNudge")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        try await addAuthHeaders(to: &request)
+        request.httpBody = try JSONEncoder().encode(["toUserId": toUserId])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+
+        if httpResponse.statusCode == 201 { return }
+
+        if let errorResponse = try? configuredDecoder().decode([String: String].self, from: data),
+           let errorMessage = errorResponse["error"] {
+            throw NSError(domain: "APIError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorMessage])
+        }
+        throw APIError.serverError
+    }
+
     func getFriendRequests(type: String) async throws -> [FriendRequest] {
         let url = URL(string: "\(baseURL)/GetFriendRequests?type=\(type)")!
         var request = URLRequest(url: url)

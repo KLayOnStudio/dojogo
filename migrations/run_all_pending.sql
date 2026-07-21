@@ -166,6 +166,15 @@ SET @stmt = IF(@col_exists = 0,
     'SELECT 1');
 PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;
 
+-- 018: Add 'nudge' to notifications.type enum
+SET @has_nudge = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'type'
+    AND COLUMN_TYPE LIKE '%''nudge''%');
+SET @stmt = IF(@has_nudge = 0,
+    "ALTER TABLE notifications MODIFY COLUMN type ENUM('campaign_invite', 'friend_accepted', 'nudge') NOT NULL",
+    'SELECT 1');
+PREPARE s FROM @stmt; EXECUTE s; DEALLOCATE PREPARE s;
+
 -- 014: Audio assets manifest (remote BGM and SFX, updatable without app release)
 CREATE TABLE IF NOT EXISTS audio_assets (
     id INT AUTO_INCREMENT PRIMARY KEY,

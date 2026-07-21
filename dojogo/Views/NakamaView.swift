@@ -347,7 +347,12 @@ struct NakamaView: View {
             }
 
             ForEach(viewModel.friends) { friend in
-                NakamaFriendRow(friend: friend, onTap: { selectedFriend = friend })
+                NakamaFriendRow(
+                    friend: friend,
+                    isNudged: viewModel.nudgedUserIds.contains(friend.userId),
+                    onTap: { selectedFriend = friend },
+                    onNudge: { Task { await viewModel.sendNudge(to: friend) } }
+                )
             }
         }
     }
@@ -355,8 +360,9 @@ struct NakamaView: View {
 
 private struct NakamaFriendRow: View {
     let friend: FriendInfo
+    let isNudged: Bool
     let onTap: () -> Void
-    @State private var showComingSoon = false
+    let onNudge: () -> Void
 
     var body: some View {
         Button(action: onTap) {
@@ -395,20 +401,15 @@ private struct NakamaFriendRow: View {
                     }
                 }
 
-                Button(action: { showComingSoon = true }) {
+                Button(action: onNudge) {
                     Image("nakamaIcon")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 20, height: 20)
-                        .opacity(0.35)
+                        .opacity(isNudged ? 0.9 : 0.35)
                 }
                 .buttonStyle(.plain)
-                .sheet(isPresented: $showComingSoon) {
-                    PixelAnnouncementSheet(
-                        title: "COMING SOON",
-                        message: "Poke & messages are coming in the next version!"
-                    )
-                }
+                .disabled(isNudged)
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12))

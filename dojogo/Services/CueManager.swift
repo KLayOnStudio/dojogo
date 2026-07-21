@@ -301,6 +301,7 @@ final class CueManager: ObservableObject {
     }
 
     private func playBeep() {
+        guard AudioService.shared.isSFXEnabled else { return }
         AudioServicesPlaySystemSound(1052)
     }
 
