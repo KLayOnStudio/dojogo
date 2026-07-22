@@ -673,6 +673,27 @@ class APIService: ObservableObject {
         })
     }
 
+    func getStageChampions() async throws -> [Int: StageChampionsEntry] {
+        let url = URL(string: "\(baseURL)/GetStageChampions")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        try await addAuthHeaders(to: &request)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+
+        struct ChampionsResponse: Codable {
+            let champions: [String: StageChampionsEntry]
+        }
+        let parsed = try configuredDecoder().decode(ChampionsResponse.self, from: data)
+        return Dictionary(uniqueKeysWithValues: parsed.champions.compactMap { k, v in
+            guard let id = Int(k) else { return nil }
+            return (id, v)
+        })
+    }
+
     func getAudioManifest() async throws -> [AudioAsset] {
         let url = URL(string: "\(baseURL)/GetAudioManifest")!
         var request = URLRequest(url: url)

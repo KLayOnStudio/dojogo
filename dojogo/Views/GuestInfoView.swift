@@ -7,11 +7,19 @@ struct GuestInfoView: View {
     @State private var experienceYears: Int = 0
     @State private var experienceMonths: Int = 0
     @State private var guestName: String = ""
+    @State private var showBetaInvite = false
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Color.black
+                Image("MapVer0")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
+                    .ignoresSafeArea()
+
+                Color.black.opacity(0.55)
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
@@ -164,12 +172,31 @@ struct GuestInfoView: View {
                                     .foregroundColor(.black)
                                     .frame(maxWidth: min(geometry.size.width * 0.7, 280))
                                     .frame(height: 56)
-                                    .background(Color.red)
+                                    .background(Color.green)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 0)
                                             .stroke(Color.white, lineWidth: 3)
                                     )
                                     .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+                            }
+
+                            // JOIN BETA button
+                            Button(action: { showBetaInvite = true }) {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "qrcode")
+                                        .font(.system(size: 20))
+                                    Text("JOIN BETA")
+                                        .font(.pixelifyButtonLarge)
+                                }
+                                .foregroundColor(.white)
+                                .frame(maxWidth: min(geometry.size.width * 0.7, 280))
+                                .frame(height: 56)
+                                .background(Color(red: 0x7F/255, green: 0x64/255, blue: 0xAC/255))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 0)
+                                        .stroke(Color.white, lineWidth: 3)
+                                )
+                                .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
                             }
 
                             Spacer()
@@ -180,5 +207,6 @@ struct GuestInfoView: View {
                 }
             }
         }
+        .sheet(isPresented: $showBetaInvite) { BetaInviteView() }
     }
 }

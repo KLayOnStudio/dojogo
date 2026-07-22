@@ -17,7 +17,9 @@ struct MainMapView: View {
     @State private var selectedStage: Stage? = nil
     @State private var showFreePracticeSheet = false
     @State private var showFreePracticeBubble = false
+    @State private var showKomainuBubble = false
     @State private var stageSwings: [Int: Int] = [:]
+    @State private var stageChampions: [Int: StageChampionsEntry] = [:]
     @State private var avatarPosition: CGPoint = Stage.allStages[0].mapPosition
     @State private var avatarFacingRight = true
     @State private var selectedAvatar: String = LocalStorageService.shared.getSelectedAvatar()
@@ -45,6 +47,7 @@ struct MainMapView: View {
                         withAnimation(.easeInOut(duration: 0.15)) {
                             selectedStage = nil
                             showFreePracticeBubble = false
+                            showKomainuBubble = false
                             avatarFacingRight.toggle()
                         }
                     }
@@ -59,6 +62,7 @@ struct MainMapView: View {
                         isUnlocked: unlocked,
                         onTap: {
                             showFreePracticeBubble = false
+                            showKomainuBubble = false
                             avatarFacingRight.toggle()
                             withAnimation(.easeInOut(duration: 0.15)) {
                                 selectedStage = selectedStage == stage ? nil : stage
@@ -67,7 +71,9 @@ struct MainMapView: View {
                                 avatarPosition = stage.mapPosition
                             }
                         },
-                        showConquerorBanner: stage.id == Stage.allStages.last?.id
+                        championsEntry: stageChampions[stage.id],
+                        showKomainu: stage.id == Stage.allStages.last?.id,
+                        showKomainuBubble: $showKomainuBubble
                     )
                     .position(
                         x: stage.mapPosition.x * geometry.size.width,
@@ -79,6 +85,7 @@ struct MainMapView: View {
                 FreePracticeShipView(
                     onTap: {
                         selectedStage = nil
+                        showKomainuBubble = false
                         avatarFacingRight.toggle()
                         withAnimation(.easeInOut(duration: 0.15)) {
                             showFreePracticeBubble.toggle()
@@ -506,6 +513,19 @@ struct MainMapView: View {
         Task {
             await syncStageProgressFromServer()
             await checkAnnouncements()
+            await fetchStageChampions()
+        }
+    }
+
+    private func fetchStageChampions() async {
+        guard !authViewModel.isGuest else { return }
+        do {
+            let champions = try await APIService.shared.getStageChampions()
+            await MainActor.run {
+                stageChampions = champions
+            }
+        } catch {
+            print("Failed to fetch stage champions: \(error)")
         }
     }
 

@@ -1,6 +1,35 @@
 import Foundation
 import CoreGraphics
 
+/// One of the top swingers on a given stage's torii gate.
+struct StageChampion: Codable {
+    let rank: Int
+    let userId: String
+    let nickname: String?
+    let userNumber: Int?
+    let totalSwings: Int
+
+    var displayName: String {
+        nickname ?? "Player #\(userNumber ?? 0)"
+    }
+}
+
+/// The komainu (guardian) standings for a single stage: top swingers, and how
+/// long the current #1 has held the lead.
+struct StageChampionsEntry: Codable {
+    let topSwingers: [StageChampion]
+    let leaderSince: Int?
+
+    var komainu: StageChampion? {
+        topSwingers.first { $0.rank == 1 }
+    }
+
+    var komainuSinceDate: Date? {
+        guard let ts = leaderSince else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(ts))
+    }
+}
+
 struct Stage: Identifiable, Hashable {
     let id: Int
     let name: String

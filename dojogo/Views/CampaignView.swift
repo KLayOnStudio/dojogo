@@ -9,7 +9,8 @@ struct CampaignView: View {
     @State private var showRules = false
     @State private var showInvite = false
     @State private var pendingRequestIds: Set<String> = []   // optimistic UI
-    @State private var showPokeSheet = false
+    @StateObject private var nudgeViewModel = NakamaViewModel()
+    @State private var nudgeSheetEntry: CampaignLeaderboardEntry?
 
     // Sprite animation
     @State private var frameIndex = 0
@@ -189,6 +190,39 @@ struct CampaignView: View {
             if let c = campaign {
                 CampaignInviteSheet(campaign: c, participantIds: Set(entries.map { $0.userId }))
             }
+        }
+        .sheet(item: $nudgeSheetEntry) { entry in
+            let target = NudgeTarget(userId: entry.userId, displayName: entry.displayName)
+            let mode: NudgeSheetMode = {
+                if entry.isFriend {
+                    return nudgeViewModel.isOnNudgeCooldown(userId: entry.userId) ? .cooldown : .presets
+                } else if entry.isPending || pendingRequestIds.contains(entry.userId) {
+                    return .requestPending
+                } else {
+                    return .sendRequest
+                }
+            }()
+            NudgeComposeSheet(
+                target: target,
+                mode: mode,
+                onSendMessage: { message in
+                    Task { await nudgeViewModel.sendNudge(toUserId: entry.userId, message: message) }
+                },
+                onSendRequest: {
+                    Task { await sendNakamaRequest(to: entry.userId) }
+                }
+            )
+        }
+        .alert(
+            "Couldn't do that",
+            isPresented: Binding(
+                get: { nudgeViewModel.errorMessage != nil },
+                set: { if !$0 { nudgeViewModel.errorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(nudgeViewModel.errorMessage ?? "")
         }
     }
 
@@ -388,12 +422,12 @@ struct CampaignView: View {
                 .frame(width: 58, alignment: .trailing)
 
             if !entry.isMe {
-                Button(action: { showPokeSheet = true }) {
-                    Image("nakamaIcon")
+                Button(action: { nudgeSheetEntry = entry }) {
+                    Image("tegami")
                         .resizable()
                         .scaledToFit()
                         .frame(width: 18, height: 18)
-                        .opacity(0.35)
+                        .opacity(entry.isFriend ? 0.7 : 0.35)
                 }
                 .buttonStyle(.plain)
                 .padding(.leading, 8)
@@ -408,12 +442,6 @@ struct CampaignView: View {
                 .frame(height: 1),
             alignment: .bottom
         )
-        .sheet(isPresented: $showPokeSheet) {
-            PixelAnnouncementSheet(
-                title: "COMING SOON",
-                message: "Poke & messages are coming in the next version!"
-            )
-        }
     }
 
     // MARK: - Pre-start participant row (no scores, nakama button)
