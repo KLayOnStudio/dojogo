@@ -10,6 +10,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 from database import execute_query, datetime_to_timestamp
 from auth import require_auth
 
+# Must match swingsRequired in dojogo/Models/Stage.swift.
+STAGE_SWINGS_REQUIRED = {1: 100, 2: 200, 3: 300, 4: 400, 5: 500}
+
 
 @require_auth
 def main(req: func.HttpRequest) -> func.HttpResponse:
@@ -31,20 +34,29 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             by_stage[s['stage_id']].append(s)
 
         # For each stage, replay sessions chronologically to find running totals
-        # AND when the current #1 most recently took the lead.
+        # AND when the current komainu took the lead. Komainu status requires
+        # having actually completed the gate (reached swingsRequired) — the
+        # first to do so becomes komainu as of that completion; leadership
+        # only transfers again when someone else's total then surpasses theirs.
         stage_totals = {}
         stage_leader_since = {}
         for stage_id, stage_sessions in by_stage.items():
+            required = STAGE_SWINGS_REQUIRED.get(stage_id)
             totals = {}
             current_leader = None
             leader_since = None
             for s in stage_sessions:
                 uid = s['user_id']
                 totals[uid] = totals.get(uid, 0) + int(s['swing_count'] or 0)
-                leader_candidate = max(totals, key=lambda k: totals[k])
-                if leader_candidate != current_leader:
-                    current_leader = leader_candidate
-                    leader_since = s['created_at']
+
+                eligible = totals if required is None else {
+                    u: t for u, t in totals.items() if t >= required
+                }
+                if eligible:
+                    leader_candidate = max(eligible, key=lambda k: eligible[k])
+                    if leader_candidate != current_leader:
+                        current_leader = leader_candidate
+                        leader_since = s['created_at']
             stage_totals[stage_id] = totals
             stage_leader_since[stage_id] = leader_since
 
@@ -75,7 +87,11 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
 
         champions = {}
         for stage_id, totals in stage_totals.items():
-            ranked = sorted(totals.items(), key=lambda kv: kv[1], reverse=True)[:3]
+            required = STAGE_SWINGS_REQUIRED.get(stage_id)
+            completed = totals if required is None else {
+                u: t for u, t in totals.items() if t >= required
+            }
+            ranked = sorted(completed.items(), key=lambda kv: kv[1], reverse=True)[:3]
             top_swingers = [format_user(uid, total, i + 1) for i, (uid, total) in enumerate(ranked)]
             leader_since = stage_leader_since.get(stage_id)
             champions[str(stage_id)] = {

@@ -63,10 +63,10 @@ struct StageNodeView: View {
             .overlay(alignment: .bottomLeading) {
                 if showKomainu {
                     // Komainu — guardian of this gate, standing beside it.
-                    // Drop an image named "komainu" into Assets.xcassets to
-                    // replace this placeholder icon automatically.
+                    // Tapping it shows an enlarged, centered focus view (see
+                    // KomainuFocusView) rather than a small local bubble.
                     Button(action: {
-                        withAnimation(.easeInOut(duration: 0.15)) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
                             showKomainuBubble?.wrappedValue.toggle()
                         }
                     }) {
@@ -76,12 +76,6 @@ struct StageNodeView: View {
                     }
                     .buttonStyle(.plain)
                     .offset(x: -komainuSize)
-                    .overlay(alignment: .bottom) {
-                        if showKomainuBubble?.wrappedValue == true {
-                            KomainuBubbleView(entry: championsEntry)
-                                .offset(y: -komainuSize - 10)
-                        }
-                    }
                 }
             }
 

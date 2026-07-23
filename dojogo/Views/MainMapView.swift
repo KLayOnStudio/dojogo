@@ -191,6 +191,14 @@ struct MainMapView: View {
                         .zIndex(10)
                 }
 
+                // Komainu focus overlay — enlarged icon + info, centered on screen
+                if showKomainuBubble {
+                    KomainuFocusView(
+                        entry: stageChampions[Stage.allStages.last?.id ?? 0],
+                        onDismiss: { showKomainuBubble = false }
+                    )
+                    .zIndex(20)
+                }
 
                 VStack(spacing: 0) {
                     // Top bar: user info + sign out
