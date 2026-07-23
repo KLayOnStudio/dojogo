@@ -78,12 +78,15 @@ struct AuthView: View {
                         .disabled(authViewModel.isLoading)
                     }
                     .padding(.horizontal, 20)
-
-                    if authViewModel.isLoading {
+                    .overlay(alignment: .bottom) {
+                        // Opacity toggle (not a conditional insertion) so this
+                        // doesn't change the VStack's intrinsic height and
+                        // shift the buttons when loading starts/stops.
                         Text("LOADING...")
                             .font(.pixelifyCaption)
                             .foregroundColor(.white)
-                            .padding(.top, 24)
+                            .opacity(authViewModel.isLoading ? 1 : 0)
+                            .offset(y: 40)
                     }
 
                     if let errorMessage = authViewModel.errorMessage {

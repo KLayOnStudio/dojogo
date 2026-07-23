@@ -43,14 +43,14 @@ struct MainMapView: View {
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .clipped()
                     .ignoresSafeArea()
-                    .onTapGesture {
+                    .simultaneousGesture(TapGesture().onEnded {
                         withAnimation(.easeInOut(duration: 0.15)) {
                             selectedStage = nil
                             showFreePracticeBubble = false
                             komainuFocusStage = nil
                             avatarFacingRight.toggle()
                         }
-                    }
+                    })
 
                 // Stage nodes overlaid on map
                 ForEach(Stage.allStages) { stage in

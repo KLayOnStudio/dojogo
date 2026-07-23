@@ -61,7 +61,7 @@ struct StageNodeView: View {
             .frame(width: size, height: size)
             .scaleEffect(pulseScale)
             .contentShape(Rectangle())
-            .onTapGesture(perform: onTap)
+            .simultaneousGesture(TapGesture().onEnded(onTap))
             .overlay(alignment: .bottomLeading) {
                 if showKomainu {
                     // Komainu — guardian of this gate, standing beside it.

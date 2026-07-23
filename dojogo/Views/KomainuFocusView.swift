@@ -40,7 +40,7 @@ struct KomainuFocusView: View {
             Color.black.opacity(0.55)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
-                .onTapGesture(perform: onDismiss)
+                .simultaneousGesture(TapGesture().onEnded(onDismiss))
 
             VStack(spacing: 12) {
                 KomainuBubbleView(entry: entry)
