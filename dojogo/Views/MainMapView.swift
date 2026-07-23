@@ -17,7 +17,7 @@ struct MainMapView: View {
     @State private var selectedStage: Stage? = nil
     @State private var showFreePracticeSheet = false
     @State private var showFreePracticeBubble = false
-    @State private var showKomainuBubble = false
+    @State private var komainuFocusStage: Stage? = nil
     @State private var stageSwings: [Int: Int] = [:]
     @State private var stageChampions: [Int: StageChampionsEntry] = [:]
     @State private var avatarPosition: CGPoint = Stage.allStages[0].mapPosition
@@ -47,7 +47,7 @@ struct MainMapView: View {
                         withAnimation(.easeInOut(duration: 0.15)) {
                             selectedStage = nil
                             showFreePracticeBubble = false
-                            showKomainuBubble = false
+                            komainuFocusStage = nil
                             avatarFacingRight.toggle()
                         }
                     }
@@ -62,7 +62,7 @@ struct MainMapView: View {
                         isUnlocked: unlocked,
                         onTap: {
                             showFreePracticeBubble = false
-                            showKomainuBubble = false
+                            komainuFocusStage = nil
                             avatarFacingRight.toggle()
                             withAnimation(.easeInOut(duration: 0.15)) {
                                 selectedStage = selectedStage == stage ? nil : stage
@@ -71,9 +71,10 @@ struct MainMapView: View {
                                 avatarPosition = stage.mapPosition
                             }
                         },
-                        championsEntry: stageChampions[stage.id],
-                        showKomainu: stage.id == Stage.allStages.last?.id,
-                        showKomainuBubble: $showKomainuBubble
+                        // TODO: re-enable komainu on every stage once it feels
+                        // less busy on the map — for now, summit gate only.
+                        championsEntry: stage.id == Stage.allStages.last?.id ? stageChampions[stage.id] : nil,
+                        onTapKomainu: { komainuFocusStage = stage }
                     )
                     .position(
                         x: stage.mapPosition.x * geometry.size.width,
@@ -85,7 +86,7 @@ struct MainMapView: View {
                 FreePracticeShipView(
                     onTap: {
                         selectedStage = nil
-                        showKomainuBubble = false
+                        komainuFocusStage = nil
                         avatarFacingRight.toggle()
                         withAnimation(.easeInOut(duration: 0.15)) {
                             showFreePracticeBubble.toggle()
@@ -192,10 +193,10 @@ struct MainMapView: View {
                 }
 
                 // Komainu focus overlay — enlarged icon + info, centered on screen
-                if showKomainuBubble {
+                if let komainuStage = komainuFocusStage {
                     KomainuFocusView(
-                        entry: stageChampions[Stage.allStages.last?.id ?? 0],
-                        onDismiss: { showKomainuBubble = false }
+                        entry: stageChampions[komainuStage.id],
+                        onDismiss: { komainuFocusStage = nil }
                     )
                     .zIndex(20)
                 }

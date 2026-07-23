@@ -6,13 +6,15 @@ struct StageNodeView: View {
     let isUnlocked: Bool
     let onTap: () -> Void
     var championsEntry: StageChampionsEntry? = nil
-    var showKomainu: Bool = false
-    var showKomainuBubble: Binding<Bool>? = nil
+    var onTapKomainu: (() -> Void)? = nil
 
     @State private var pulseScale: CGFloat = 1.0
+    @State private var komainuGlowScale: CGFloat = 1.0
+    @State private var komainuGlowTint: Color = .white
 
     private let size: CGFloat = 77
-    private var komainuSize: CGFloat { size / 2 }
+    private var komainuSize: CGFloat { size * 0.7 }
+    private var showKomainu: Bool { championsEntry?.komainu != nil }
 
     private var rawProgress: Double {
         min(Double(swings) / Double(stage.swingsRequired), 1.0)
@@ -67,11 +69,13 @@ struct StageNodeView: View {
                     // KomainuFocusView) rather than a small local bubble.
                     Button(action: {
                         withAnimation(.easeInOut(duration: 0.2)) {
-                            showKomainuBubble?.wrappedValue.toggle()
+                            onTapKomainu?()
                         }
                     }) {
                         komainuIcon
                             .frame(width: komainuSize, height: komainuSize)
+                            .scaleEffect(komainuGlowScale)
+                            .colorMultiply(komainuGlowTint)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -91,6 +95,12 @@ struct StageNodeView: View {
             if isCurrent {
                 withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
                     pulseScale = 1.08
+                }
+            }
+            if showKomainu {
+                withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                    komainuGlowScale = 1.15
+                    komainuGlowTint = .yellow
                 }
             }
         }

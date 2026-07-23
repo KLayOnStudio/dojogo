@@ -72,6 +72,22 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             ) or []
             users_by_id = {u['id']: u for u in user_rows}
 
+        friendships = execute_query(
+            """SELECT CASE WHEN user_id_a = %s THEN user_id_b ELSE user_id_a END AS other_id
+               FROM friendships WHERE user_id_a = %s OR user_id_b = %s""",
+            (user_id, user_id, user_id),
+            fetch=True
+        )
+        friend_ids = {r['other_id'] for r in (friendships or [])}
+
+        sent_requests = execute_query(
+            """SELECT to_user_id FROM friend_requests
+               WHERE from_user_id = %s AND status = 'pending'""",
+            (user_id,),
+            fetch=True
+        )
+        pending_ids = {r['to_user_id'] for r in (sent_requests or [])}
+
         def format_user(uid, total_swings, rank):
             u = users_by_id.get(uid, {})
             is_own = uid == user_id
@@ -82,7 +98,9 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
                 "userId": uid,
                 "nickname": nickname,
                 "userNumber": int(u['user_number']) if u.get('user_number') is not None else None,
-                "totalSwings": total_swings
+                "totalSwings": total_swings,
+                "isFriend": uid in friend_ids,
+                "isPending": uid in pending_ids,
             }
 
         champions = {}

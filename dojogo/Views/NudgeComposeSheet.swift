@@ -24,6 +24,7 @@ enum NudgeSheetMode {
 struct NudgeComposeSheet: View {
     let target: NudgeTarget
     let mode: NudgeSheetMode
+    var presets: [String] = nudgePresets
     let onSendMessage: (String) -> Void
     let onSendRequest: () -> Void
     @Environment(\.dismiss) var dismiss
@@ -40,7 +41,7 @@ struct NudgeComposeSheet: View {
     private var cards: [String] {
         switch mode {
         case .presets:
-            return nudgePresets
+            return presets
         case .cooldown:
             return ["Wait at least 2 minutes before nudging \(target.displayName) again."]
         case .sendRequest:

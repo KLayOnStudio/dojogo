@@ -1,61 +1,30 @@
 import SwiftUI
 
-/// Speech bubble showing the komainu (guardian) info for a stage's torii gate:
-/// whoever has swung it the most, their total, and how long they've held it.
-/// More info (top-3 runners-up, etc.) can be added here later.
+/// Speech bubble telling the story of a stage's komainu (guardian): it's a
+/// title held by whoever has swung the gate the most, not a fixed character.
+/// The current titleholder's name/swings/date live in the nameplate below
+/// the icon (see KomainuFocusView) — this bubble is flavor text only.
 struct KomainuBubbleView: View {
     let entry: StageChampionsEntry?
 
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy"
-        return formatter
-    }()
+    private let assignedDescription = "Every swing drives away the four sicknesses — fear, hesitation, surprise, and doubt — that cling to this gate. Enough of them, and the komainu is summoned — its power now flows into the shinai of the one who called it forth."
 
-    private func description(swings: Int) -> String {
-        "The komainu is the guardian of this gate, having fought off countless challengers through \(swings) swings. You could be the next one — it's waiting for you to step up!"
-    }
-
-    private let noKomainuDescription = "No komainu guards this gate yet. Be the first challenger to step up and claim it!"
+    private let noKomainuDescription = "Every swing drives away the four sicknesses — fear, hesitation, surprise, and doubt — that cling to this gate. Strike enough, and you'll summon the komainu — awakening its power in your shinai."
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 8) {
                 Text("KOMAINU")
-                    .font(.pixelify(size: 12, weight: .bold))
+                    .font(.pixelify(size: 14, weight: .bold))
                     .foregroundColor(.yellow)
 
-                if let komainu = entry?.komainu {
-                    Text(description(swings: komainu.totalSwings))
-                        .font(.pixelify(size: 10))
-                        .foregroundColor(.white.opacity(0.85))
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Divider().background(Color.white.opacity(0.2))
-
-                    Text(komainu.displayName)
-                        .font(.pixelify(size: 14, weight: .bold))
-                        .foregroundColor(.white)
-
-                    Text("\(komainu.totalSwings) SWINGS")
-                        .font(.pixelify(size: 11, weight: .bold))
-                        .foregroundColor(.green)
-
-                    if let since = entry?.komainuSinceDate {
-                        Text("SINCE \(Self.dateFormatter.string(from: since).uppercased())")
-                            .font(.pixelify(size: 9))
-                            .foregroundColor(.gray)
-                    }
-                } else {
-                    Text(noKomainuDescription)
-                        .font(.pixelify(size: 10))
-                        .foregroundColor(.gray)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text(entry?.komainu != nil ? assignedDescription : noKomainuDescription)
+                    .font(.pixelify(size: 13))
+                    .foregroundColor(.white.opacity(0.85))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(width: 220)
+            .frame(width: 260)
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .background(Color.black.opacity(0.9))

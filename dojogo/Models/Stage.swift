@@ -2,15 +2,36 @@ import Foundation
 import CoreGraphics
 
 /// One of the top swingers on a given stage's torii gate.
-struct StageChampion: Codable {
+struct StageChampion: Codable, Identifiable {
     let rank: Int
     let userId: String
     let nickname: String?
     let userNumber: Int?
     let totalSwings: Int
+    let isFriend: Bool
+    let isPending: Bool
+
+    var id: String { userId }
 
     var displayName: String {
         nickname ?? "Player #\(userNumber ?? 0)"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case rank, userId, nickname, userNumber, totalSwings, isFriend, isPending
+    }
+
+    // isFriend/isPending default to false so this still decodes against a
+    // not-yet-redeployed GetStageChampions response that omits them.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        rank = try container.decode(Int.self, forKey: .rank)
+        userId = try container.decode(String.self, forKey: .userId)
+        nickname = try container.decodeIfPresent(String.self, forKey: .nickname)
+        userNumber = try container.decodeIfPresent(Int.self, forKey: .userNumber)
+        totalSwings = try container.decode(Int.self, forKey: .totalSwings)
+        isFriend = try container.decodeIfPresent(Bool.self, forKey: .isFriend) ?? false
+        isPending = try container.decodeIfPresent(Bool.self, forKey: .isPending) ?? false
     }
 }
 
